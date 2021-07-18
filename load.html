@@ -1,0 +1,189 @@
+<html>
+
+<body>
+  <input id="primary-file-upload" type="file" multiple>
+  <button id="start">GO</button>
+  <button id="dispose">Dispose</button>
+  <div id="file-content">
+    Nothing uploaded yet
+  </div>
+</body>
+<script src="wasm-check.js"></script>
+<script src="ImageProcess.js"></script>
+<script src="wforward.js"></script>
+<script src="wasm.js"></script>
+<script src="wasm-worker-init.js"></script>
+<script src="forward.js"></script>
+<script src="parse.js"></script>
+<script>
+  const wasmSupport = wasmcheck.support()
+  const wasmSimd = wasmcheck.feature.simd
+  const wasmthread = wasmcheck.feature.threads
+  if (wasmSupport && wasmthread) {
+    initWorkers(3).then(
+      () => {
+        WasmBinding.getInstance();
+        postMessage({ type: 'init-success' });
+      },
+    );
+  }
+  else if (wasmSupport && !wasmthread){
+    initWorkers(0).then(
+      () => {
+        WasmBinding.getInstance();
+        postMessage({ type: 'init-success' });
+      },
+    );
+  }
+  const imageLoader = new ImageLoader(768, 576);
+  var parser = new parse(wasmSupport, true)
+  var loadWeight = false
+  function abortRead() {
+    //  reader.abort();
+  }
+
+  function errorHandler(evt) {
+    switch (evt.target.error.code) {
+      case evt.target.error.NOT_FOUND_ERR:
+        console.log('File Not Found!');
+        break;
+      case evt.target.error.NOT_READABLE_ERR:
+        console.log('File is not readable');
+        break;
+      case evt.target.error.ABORT_ERR:
+        break; // noop
+      default:
+        console.log('An error occurred reading this file.');
+    };
+  }
+
+  function updateProgress(evt) {
+    // evt is an ProgressEvent.
+    if (evt.lengthComputable) {
+      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      if (percentLoaded == 100)
+        console.log('loaded')
+    }
+  }
+  const readUploadedFileAsText = inputFile => {
+    const temporaryFileReader = new FileReader();
+    temporaryFileReader.onerror = errorHandler;
+    temporaryFileReader.onprogress = updateProgress;
+    temporaryFileReader.onloadstart = () => { loadWeight = false }
+    temporaryFileReader.onloadend = () => { loadWeight = true }
+    temporaryFileReader.onabort = function (e) {
+      console.log('File read cancelled');
+    };
+    temporaryFileReader.onloadstart = function (e) {
+      //document.getElementById('progress_bar').className = 'loading';
+    };
+    return new Promise((resolve, reject) => {
+      temporaryFileReader.onerror = () => {
+        temporaryFileReader.abort();
+        reject(new DOMException("Problem parsing input file."));
+      };
+      temporaryFileReader.onload = () => {
+        resolve(temporaryFileReader.result);
+      };
+      temporaryFileReader.readAsText(inputFile);
+    });
+  };
+  const readUploadedBlob = inputFile => {
+    const temporaryFileReader = new FileReader();
+    temporaryFileReader.onerror = errorHandler;
+    temporaryFileReader.onprogress = updateProgress;
+    temporaryFileReader.onloadstart = () => { loadWeight = false }
+    temporaryFileReader.onloadend = () => { loadWeight = true }
+    temporaryFileReader.onabort = function (e) {
+      console.log('File read cancelled');
+    };
+    return new Promise((resolve, reject) => {
+      temporaryFileReader.onerror = () => {
+        temporaryFileReader.abort();
+        reject(new DOMException("Problem parsing input file."));
+      };
+
+      temporaryFileReader.onload = () => {
+        resolve(temporaryFileReader.result);
+      };
+      temporaryFileReader.readAsArrayBuffer(inputFile);
+    });
+  };
+  /*  async function loadwasm() {
+      let x = '../wforward.wasm';
+      let instance = null;
+      let memoryStates = new WeakMap();
+  
+      let s = "";
+      fetch(x).then(response =>
+        response.arrayBuffer()
+      ).then(bytes => {
+        console.log(bytes)
+        WebAssembly.instantiate(bytes, {
+          env: {"b":_abort,"a":_emscripten_resize_heap,"memory":wasmMemory,"table":wasmTable},
+        })
+      }
+      ).then(results => {
+        instance = results.instance;
+        console.log(instance)
+      });
+    }
+    loadwasm()*/
+
+  const handleUploadWeight = async event => {
+    const file = event.target.files[0];
+    const blob = event.target.files[1];
+    const fileContentDiv = document.querySelector('div#file-content');
+    try {
+      const fileContents = await readUploadedFileAsText(file);
+      const blb = await readUploadedBlob(blob)
+      const weights = new DataView(blb);
+
+      parser.parse_network_cfg(fileContents, weights)
+      await imageLoader.getImageData('./dog.jpg');
+      document.getElementById("file-content").appendChild(imageLoader.canvas)
+    } catch (e) {
+      console.log(e)
+      fileContentDiv.innerHTML = e.message;
+    }
+  };
+  const handleSt = async event => {
+    const fileContentDiv = document.querySelector('div#file-content');
+    try {
+      console.log(loadWeight)
+      console.time()
+      // WasmBinding.getInstance().dispose()
+      await parser.start(imageLoader.pixels)
+      console.timeEnd()
+      const img = new ImageProcess()
+      const dets = img.get_network_boxes(parser.layers, 1, 1, 0.2, 0, 0);
+      console.log(dets)
+      const ctx = imageLoader.context
+      ctx.beginPath();
+      for (let i = 0; i < dets.length; i++)
+        if (dets[i].bbox)
+          ctx.rect(dets[i].bbox.x * 768 / 2, dets[i].bbox.y * 576 / 2, dets[i].bbox.w * 768, dets[i].bbox.h * 576)
+      ctx.strokeStyle = "black"
+      ctx.stroke()
+    } catch (e) {
+      console.log(e)
+      fileContentDiv.innerHTML = e.message;
+    }
+  };
+  const handleDispose = async event => {
+    const fileContentDiv = document.querySelector('div#file-content');
+    try {
+      parser.layers = []
+      //parser = null
+    } catch (e) {
+      console.log(e)
+      fileContentDiv.innerHTML = e.message;
+    }
+  };
+
+  document.querySelector('input#primary-file-upload').addEventListener('change', handleUploadWeight);
+  document.getElementById('start').addEventListener('click', handleSt);
+  document.getElementById('dispose').addEventListener('click', handleDispose);
+</script>
+
+</html>
