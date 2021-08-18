@@ -9,6 +9,24 @@
   </div>
 </body>
 <script src="wasm-check.js"></script>
+<script src="webgl/glsl-definitions.js"></script>
+<script src="webgl/glsl-array-lib.js"></script>
+<script src="webgl/glsl-coordinate-lib.js"></script>
+<script src="webgl/glsl-encoding-lib.js"></script>
+<script src="webgl/glsl-fragcolor-lib.js"></script>
+<script src="webgl/glsl-function-inliner.js"></script>
+<script src="webgl/glsl-preprocessor.js"></script>
+<script src="webgl/glsl-shape-utils-lib.js"></script>
+<script src="webgl/glsl-source.js"></script>
+<script src="webgl/glsl-vec-lib.js"></script>
+<script src="webgl/WebGL.js"></script>
+<script src="webgl/program-manager.js"></script>
+<script src="webgl/texture-data-encoder.js"></script>
+<script src="webgl/texture-layout-strategy.js"></script>
+<script src="webgl/texture-manager.js"></script>
+<script src="webgl/webgl-context-factory.js"></script>
+<script src="webgl/webgl-context.js"></script>
+<script src="webgl/ops/leaky-relu.js"></script>
 <script src="ImageProcess.js"></script>
 <script src="wforward.js"></script>
 <script src="wasm.js"></script>
@@ -19,6 +37,7 @@
   const wasmSupport = wasmcheck.support()
   const wasmSimd = wasmcheck.feature.simd
   const wasmthread = wasmcheck.feature.threads
+  console.log(wasmthread)
   if (wasmSupport && wasmthread) {
     initWorkers(3).then(
       () => {

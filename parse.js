@@ -1,7 +1,7 @@
 class parse {
   constructor(wasm, webgl) {
     this.wasm = wasm ? true : false
-   // this.webgl = webgl ? new WebGL("webgl2") : null
+    //this.webgl = webgl ? new WebGL("webgl2") : null
     //const l = { b: 1, c: 5, h: 100, w: 50, output: Array(1 * 5 * 100 * 50) }
     //for(let i=0;i<l.output.length;i++)
     //const prog = new WebGLLeakyRelu(this.webgl, l)

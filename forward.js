@@ -215,7 +215,7 @@ class Forward {
         for (let h = 0; h < l.out_h; ++h)
           for (let w = 0; w < l.out_w; ++w)
             l.output[b * l.out_c * l.out_w * out_h + c * l.out_w * l.out_h + h * l.out_w + w] =
-              input[b * l.c * l.w * h + c * l.factor * l.w * h + h * l.w + w % (l.factor) * l.w * l.h + ~~(w / l.factor)];
+              input[b * l.c * l.w * h + c * l.factor * l.w * h + ~~(h * l.w + w % (l.factor) * l.w * l.h) + ~~(w / l.factor)];
   }
   static logistic_activate(x) { return (1 / (1 + Math.exp(-x))); }
   static leaky_activate(x) { return ((x > 0) ? x : 0.1 * x); }
@@ -272,12 +272,12 @@ class Forward {
   static async WasmConv(layers) {
     const l = this
     const X = layers[l.index - 1].output
-    const active = { 'RELU': 2, 'LEAKY': 3, 'LINEAR': 0, 'MISH': 4, 'SWISH': 5, 'LOGISTIC': 1 }
+    const active = { 'LOGISTIC': 1, 'RELU': 2, 'LEAKY': 3, 'LINEAR': 0, 'MISH': 4, 'SWISH': 5 }
     const numThreads = (l.batch !== 1 || l.groups !== 1 || l.filters === 1 || WasmBinding.workerNumber <= 0) ? 1 : Math.min(l.filters, numWebWorkers + 1);
     if (numThreads == 1)
       WasmBinding.getInstance().ccall(
         '_conv_f32', [X, 'float32ptr'], [[l.batch, l.c, l.h, l.w], 'int32ptr'], [l.weights, 'float32ptr'],
-        [[l.filters, l.c / l.groups, l.size, l.size], 'int32ptr'], [l.output, 'float32ptr', 'out'], [[l.batch, l.out_c, l.out_h, l.out_w], 'int32ptr'],
+        [[l.filters, l.c, l.size, l.size], 'int32ptr'], [l.output, 'float32ptr', 'out'], [[l.batch, l.out_c, l.out_h, l.out_w], 'int32ptr'],
         [l.biases.length > 0 ? l.biases : null, 'float32ptr'], [[l.dilation, l.dilation], 'int32ptr'], [l.groups, 'int32'],
         [[l.pad, l.pad, l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'], [active[l.activation], 'int32']);
     else {
