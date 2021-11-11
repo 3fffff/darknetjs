@@ -125,8 +125,8 @@ class Backward {
   static channel_shuffle_op(output, input,  group_row,  group_colomn,  len) {
     for (let i = 0; i < group_row; i++) {
       for (let j = 0; j < group_colomn; j++) {
-        float * p_i = input + (i * group_colomn + j) * len;
-        float * p_o = output + (j * group_row + i) * len;
+        const p_i = input + (i * group_colomn + j) * len;
+        const p_o = output + (j * group_row + i) * len;
         copy_cpu(len, p_i, 1, p_o, 1);
       }
     }
