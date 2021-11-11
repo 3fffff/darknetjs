@@ -1,11 +1,17 @@
 class parse {
   constructor(wasm, webgl) {
     this.wasm = wasm ? true : false
-    //this.webgl = webgl ? new WebGL("webgl2") : null
-    //const l = { b: 1, c: 5, h: 100, w: 50, output: Array(1 * 5 * 100 * 50) }
-    //for(let i=0;i<l.output.length;i++)
-    //const prog = new WebGLLeakyRelu(this.webgl, l)
-    //console.log(prog)
+    this.webgl = webgl ? new WebGL("webgl2") : null
+    const l = { index: 1, b: 1, c: 3, h: 608, w: 608, out_c: 3, out_h: 608, out_w: 608, output: Array(3 * 608 * 608) }
+    const input = Array(3 * 608 * 608)
+    for (let i = 0; i < input.length; i++)input[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
+    l.glProg = WebGLActivation.createProgramInfo(this.webgl, l)
+    l.glData = WebGLActivation.createRunData(this.webgl, l, input)
+    const artifact = this.webgl.programManager.build(l.glProg);
+    this.webgl.programManager.setArtifact(l.index, artifact);
+    this.webgl.programManager.run(artifact, l.glData);
+    console.log(input)
+    console.log(l.glData.outputTextureData.gldata(1))
   }
   option_find_int(options, name, def) {
     const res = options[name]
@@ -40,22 +46,20 @@ class parse {
       stride_x = stride_x < 1 ? stride : stride_x;
       stride_y = stride_y < 1 ? stride : stride_y;
     }
-    const groups = this.option_find_int(options, 'groups', 1);
-    const batch_normalize = this.option_find_int(options, 'batch_normalize', 0);
     const l = {};
     l.type = "CONVOLUTIONAL";
     l.h = parseInt(param.height); l.w = parseInt(param.width); l.c = parseInt(param.channels);
     l.filters = n;
-    l.groups = groups;
+    l.groups = this.option_find_int(options, 'groups', 1);
     l.batch = options.batch;
     l.stride_x = stride_x;
     l.stride_y = stride_y;
     l.size = size;
     l.pad = padding;
-    l.batch_normalize = batch_normalize;
+    l.batch_normalize = this.option_find_int(options, 'batch_normalize', 0);
     l.dilation = 1
 
-    l.weights = new Float32Array(l.c / groups * n * size * size);
+    l.weights = new Float32Array(l.c / l.groups * n * size * size);
 
     l.biases = new Float32Array(n);
 
@@ -67,7 +71,7 @@ class parse {
 
     l.output = new Float32Array(l.batch * l.outputs);
     l.forward = this.wasm ? Forward.WasmConv : Forward.convolutional_layer
-    if (batch_normalize != 0) {
+    if (l.batch_normalize != 0) {
       l.scales = new Float32Array(n);
       for (let i = 0; i < n; ++i)l.scales[i] = 1;
       l.mean = new Float32Array(n);
@@ -75,8 +79,6 @@ class parse {
     }
     l.activation = this.option_find_str(options, "activation", "logistic").toUpperCase();
     this.options_from_layer(options, l)
-    //l.programInfo = new WebGLLeakyRelu(this.webgl, l)
-    //l.glrundata= WebGLLeakyRelu.createRunData(this.webgl,l,this.layers)
     return l;
   }
 
@@ -430,7 +432,6 @@ class parse {
     l.groups = groups;
     l.outputs = l.out_w * l.out_h * l.out_c;
     l.inputs = l.w * l.h * l.c;
-    // l.delta = (float*)calloc(output_size, sizeof(float));
     l.output = new Float32Array(l.outputs * batch);
     l.forward = Forward.shuffle_channels
     return l;

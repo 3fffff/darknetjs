@@ -14,19 +14,16 @@
 <script src="webgl/glsl-coordinate-lib.js"></script>
 <script src="webgl/glsl-encoding-lib.js"></script>
 <script src="webgl/glsl-fragcolor-lib.js"></script>
-<script src="webgl/glsl-function-inliner.js"></script>
-<script src="webgl/glsl-preprocessor.js"></script>
 <script src="webgl/glsl-shape-utils-lib.js"></script>
 <script src="webgl/glsl-source.js"></script>
 <script src="webgl/glsl-vec-lib.js"></script>
+<script src="webgl/glsl-preprocessor.js"></script>
+<script src="webgl/texture-data-encoder.js"></script>
+<script src="webgl/texture-manager.js"></script>
 <script src="webgl/WebGL.js"></script>
 <script src="webgl/program-manager.js"></script>
-<script src="webgl/texture-data-encoder.js"></script>
-<script src="webgl/texture-layout-strategy.js"></script>
-<script src="webgl/texture-manager.js"></script>
-<script src="webgl/webgl-context-factory.js"></script>
 <script src="webgl/webgl-context.js"></script>
-<script src="webgl/ops/leaky-relu.js"></script>
+<script src="webgl/ops/activation.js"></script>
 <script src="ImageProcess.js"></script>
 <script src="wforward.js"></script>
 <script src="wasm.js"></script>
@@ -46,7 +43,7 @@
       },
     );
   }
-  else if (wasmSupport && !wasmthread){
+  else if (wasmSupport && !wasmthread) {
     initWorkers(0).then(
       () => {
         WasmBinding.getInstance();
@@ -55,7 +52,8 @@
     );
   }
   const imageLoader = new ImageLoader(768, 576);
-  var parser = new parse(wasmSupport, true)
+  var parser = new parse(false, true)
+  console.log(parser)
   var loadWeight = false
   function abortRead() {
     //  reader.abort();

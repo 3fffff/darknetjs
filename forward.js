@@ -180,20 +180,22 @@ class Forward {
               l.scale * l.output[b * l.w * l.h * l.c * l.stride * l.stride + k * l.w * l.h * l.stride * l.stride + j * l.w * l.stride + i];
   }
   static upsampleBilinear(l, input) {
-    for (let n = 0; n < l.b; ++n) {
+    for (let b = 0; n < l.b; ++b) {
       for (let c = 0; c < l.c; ++c) {
         for (let y = 0; y < l.out_h; ++y) {
           const inY1 = Math.min(~~(y / l.scale), l.h - 1);
           const inY2 = Math.min(inY1 + 1, l.h - 1);
+          const dy1 = y / (l.scale) - inY1, dy2 = y / (l.scale) - inY2;
           for (let x = 0; x < l.out_w; ++x) {
             const inX1 = Math.min(~~(x / l.scale), l.w - 1);
             const inX2 = Math.min(inX1 + 1, l.w - 1);
+            const dx1 = x / (l.scale) - inX1, dx2 = x / (l.scale) - inX2
             const x11 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY1 + inX1];
             const x21 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY1 + inX2];
             const x12 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY2 + inX1];
             const x22 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY2 + inX2];
             l.output[b * l.out_w * l.out_h * l.c + l.out_w * l.out_h * c + l.out_w * y + x] =
-              dx2[x] * dy2[y] * x11 + dx1[x] * dy2[y] * x21 + dx2[x] * dy1[y] * x12 + dx1[x] * dy1[y] * x22;
+              dx2 * dy2 * x11 + dx1 * dy2 * x21 + dx2 * dy1 * x12 + dx1 * dy1 * x22;
           }
         }
       }
@@ -217,37 +219,37 @@ class Forward {
             l.output[b * l.out_c * l.out_w * out_h + c * l.out_w * l.out_h + h * l.out_w + w] =
               input[b * l.c * l.w * h + c * l.factor * l.w * h + ~~(h * l.w + w % (l.factor) * l.w * l.h) + ~~(w / l.factor)];
   }
-  static logistic_activate(x) { return (1 / (1 + Math.exp(-x))); }
-  static leaky_activate(x) { return ((x > 0) ? x : 0.1 * x); }
-  static relu_activate(x) { return Math.max(0, x); }
-  static tanh_activate(x) { return (2 / (1 + Math.exp(-2 * x)) - 1); }
-  static softplus_activate(x, threshold) {
+  static logistic(x) { return (1 / (1 + Math.exp(-x))); }
+  static leaky(x) { return ((x > 0) ? x : 0.1 * x); }
+  static relu(x) { return Math.max(0, x); }
+  static tanh(x) { return (2 / (1 + Math.exp(-2 * x)) - 1); }
+  static softplus(x, threshold) {
     if (x > threshold) return x;                // too large
     else if (x < -threshold) return Math.exp(x);    // too small
     return Math.log(Math.exp(x) + 1);
   }
-  static mish_activate(x) {
-    return x * Forward.tanh_activate(Forward.softplus_activate(x, 20));
+  static mish(x) {
+    return x * Forward.tanh(Forward.softplus(x, 20));
   }
-  static swish_activate(x) {
-    return x * Forward.logistic_activate(x);
+  static swish(x) {
+    return x * Forward.logistic(x);
   }
   static activate(x, a) {
     switch (a) {
       case "LOGISTIC":
-        for (let i = 0; i < x.length; i++)x[i] = Forward.logistic_activate(x[i])
+        for (let i = 0; i < x.length; i++)x[i] = Forward.logistic(x[i])
         return x;
       case "RELU":
-        for (let i = 0; i < x.length; i++)x[i] = Forward.relu_activate(x[i])
+        for (let i = 0; i < x.length; i++)x[i] = Forward.relu(x[i])
         return x;
       case "LEAKY":
-        for (let i = 0; i < x.length; i++)x[i] = Forward.leaky_activate(x[i])
+        for (let i = 0; i < x.length; i++)x[i] = Forward.leaky(x[i])
         return x;
       case "MISH":
-        for (let i = 0; i < x.length; i++)x[i] = Forward.mish_activate(x[i]);
+        for (let i = 0; i < x.length; i++)x[i] = Forward.mish(x[i]);
         return x
       case "SWISH":
-        for (let i = 0; i < x.length; i++)x[i] = Forward.swish_activate(x[i]);
+        for (let i = 0; i < x.length; i++)x[i] = Forward.swish(x[i]);
         return x;
       default: return x;
     }
@@ -263,7 +265,7 @@ class Forward {
   }
   static sam_layer(layers) {
     for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[i] * layers[this.indexs].output[i];
-    l.output = Forward.activate(l.output, l.activation);
+    this.output = Forward.activate(this.output, this.activation);
   }
 
   static YOLODROP(layers) {
