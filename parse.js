@@ -10,6 +10,7 @@ class parse {
     const artifact = this.webgl.programManager.build(l.glProg);
     this.webgl.programManager.setArtifact(l.index, artifact);
     this.webgl.programManager.run(artifact, l.glData);
+    console.log(l)
     console.log(input)
     console.log(l.glData.outputTextureData.gldata(1))
   }
