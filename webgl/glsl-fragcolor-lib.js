@@ -11,9 +11,6 @@ class FragColorGlslLib extends GlslLib {
   getFunctions() {
     return Object.assign(Object.assign({}, this.setFragColor()), this.getColorAsFloat());
   }
-  getCustomTypes() {
-    return {};
-  }
   setFragColor() {
     const glsl = getGlsl(this.context.glContext.version);
     return {

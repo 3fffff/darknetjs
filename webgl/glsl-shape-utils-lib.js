@@ -10,9 +10,6 @@ class ShapeUtilsGlslLib extends GlslLib {
   getFunctions() {
     return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, this.bcastIndex()), this.bcastMatmulIndex()), this.offsetToIndices()), this.indicesToOffset()), this.incrementIndices());
   }
-  getCustomTypes() {
-    return {};
-  }
   bcastIndex() {
     const programInfo = this.context.programInfo;
     const outputRank = programInfo.outputLayout.shape.length;

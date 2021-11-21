@@ -10,9 +10,6 @@ class EncodingGlslLib extends GlslLib {
   getFunctions() {
     return Object.assign(Object.assign({}, this.encodeFloat32()), this.decodeFloat32());
   }
-  getCustomTypes() {
-    return {};
-  }
   encodeFloat32() {
     return {
       encode: new GlslLibRoutine(`highp vec4 encode(highp float f) {

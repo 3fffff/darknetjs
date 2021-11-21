@@ -78,10 +78,9 @@ class ImageProcess {
     return b;
   }
   fill_network_boxes(layers, w, h, thresh, relative, dets, letter) {
-    for (let j = 1; j < layers.length; ++j) {
+    for (let j = 1; j < layers.length; ++j)
       if (layers[j].type == "YOLO")
         this.get_yolo_detections(layers[j], w, h, layers[0].w, layers[0].h, thresh, relative, dets, letter);
-    }
   }
 
   get_network_boxes(layers, w, h, thresh, relative, letter) {
@@ -201,17 +200,14 @@ class ImageProcess {
     return count;
   }
   entry_index(l, batch, location, entry) {
-    const n = Math.floor(location / (l.w * l.h));
-    const loc = Math.floor(location % (l.w * l.h));
-    return batch * l.outputs + n * l.w * l.h * (4 + l.classes + 1) + entry * l.w * l.h + loc;
+    return batch * l.outputs + Math.floor(location / (l.w * l.h)) * l.w * l.h * (4 + l.classes + 1) + entry * l.w * l.h + Math.floor(location % (l.w * l.h));
   }
 
   num_detections(layers, thresh) {
     let s = 0;
-    for (let i = 0; i < layers.length; ++i) {
+    for (let i = 0; i < layers.length; ++i)
       if (layers[i].type == "YOLO")
         s += this.yolo_num_detections(layers[i], thresh);
-    }
     return s;
   }
 }

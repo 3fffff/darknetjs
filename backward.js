@@ -41,7 +41,7 @@ class Backward {
             l.pad * l.dilation, l.pad * l.dilation,           // padding (h, w)
             l.stride_y, l.stride_x,     // stride (h, w)
             l.dilation, l.dilation, // dilation (h, w)
-            delta + (i * l.groups + j) * (l.c / l.groups) * l.h * l.w); // output (delta)
+            delta.subarray(i * l.groups + j) * (l.c / l.groups) * l.h * l.w); // output (delta)
         }
       }
     }
@@ -49,9 +49,9 @@ class Backward {
   static bias(bias_updates, delta, batch, n, size) {
     for (let b = 0; b < batch; ++b)
       for (let i = 0; i < n; ++i)
-        bias_updates[i] += sum_array(delta + size * (i + b * n), size);
+        bias_updates[i] += sum_array(delta.subarray(size * (i + b * n)), size);
   }
-  static scale_cpu(x_norm, delta, batch, n, size, scale_updates) {
+  static scale(x_norm, delta, batch, n, size, scale_updates) {
     for (let f = 0; f < n; ++f) {
       let sum = 0;
       for (let b = 0; b < batch; ++b) {
@@ -71,7 +71,7 @@ class Backward {
 
     for (let i = 0; i < l.batch * l.out_c * l.out_w * l.out_h; ++i) {
       l.delta[i] += l.delta[i] * from_output[i]; // l.delta * from  (should be divided by channel_size?)
-      from_delta[i] = l.input[i] * l.delta[i]; // input * l.delta
+      from_delta[i] = input[i] * l.delta[i]; // input * l.delta
     }
   }
   static route_layer(layers) {
@@ -83,7 +83,7 @@ class Backward {
       const input_size = l.input_sizes[i];
       const part_input_size = input_size / l.groups;
       for (let j = 0; j < l.batch; ++j)
-        Backward.axpy_cpu(part_input_size, 1, l.delta + offset + j * l.outputs, 1, delta + j * input_size + part_input_size * l.group_id, 1);
+        Backward.axpy_cpu(part_input_size, 1, delta.subarray(offset + j * l.outputs), 1, delta.subarray(j * input_size + part_input_size * l.group_id), 1);
       offset += part_input_size;
     }
   }
@@ -97,8 +97,8 @@ class Backward {
     const from_delta = layers[l.index + 1].delta;
 
     for (i = 0; i < size; ++i) {
-      input.delta[i / channel_size] += l.delta[i] * from_output[i];// / channel_size; // l.delta * from  (should be divided by channel_size?)
-      from_delta[i] += input.output[i / channel_size] * l.delta[i]; // input * l.delta
+      l.delta[i / channel_size] += l.delta[i] * from_output[i];// / channel_size; // l.delta * from  (should be divided by channel_size?)
+      from_delta[i] += input[i / channel_size] * l.delta[i]; // input * l.delta
     }
   }
   static shortcut_layer(layers) {
@@ -277,7 +277,6 @@ class Backward {
            l.backward(l, net);
        }
    }*/
-
   static relu_gradient(x) { return (x > 0); }
   static elu_gradient(x) { return (x >= 0) + (x < 0) * (x + 1); }
   static leaky_gradient(x) { return (x > 0) ? 1 : .1; }

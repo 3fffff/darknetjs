@@ -7,12 +7,12 @@ class WebGL {
       this.glContext = createWebGLContext(this.context);
       if (typeof this.matmulMaxBatchSize !== 'number') this.matmulMaxBatchSize = 16;
       if (typeof this.textureCacheMode !== 'string') this.textureCacheMode = 'full';
-      console.log( `Created WebGLContext: ${JSON.stringify(this.glContext)}`);
+      console.log(`Created WebGLContext: ${JSON.stringify(this.glContext)}`);
     }
     catch (e) {
-      console.log( `Unable to initialize WebGL. ${e}`);
+      console.log(`Unable to initialize WebGL. ${e}`);
     }
-    this.textureManager = new TextureManager(this.glContext,  this.textureCacheMode === 'full');
+    this.textureManager = new TextureManager(this.glContext, this.textureCacheMode === 'full');
     this.textureDataCache = new Map();
     this.programManager = new ProgramManager(this.glContext);
   }
@@ -40,17 +40,15 @@ class WebGL {
    *   Creates a texture data object associated with the given tensor.
    * @param tensor the tensor with data to upload
    */
-  getOrCreateTextureData(tensor, input,layout) {
-    let td = this.getTextureData(tensor.index - 1);
+  getOrCreateTextureData(tensor, layout,dim) {
+    let td = this.getTextureData(tensor.TextureID);
     if (!td) {
-      console.log( `Creating new TextureData for layer: [${tensor.index - 1}]`);
-      if (!layout)layout = this.createTextureLayoutFromShape([l.b.l.c, l.h, l.w]);
+      console.log(`Creating new TextureData for layer: [${tensor.TextureID}]`);
+      if (!layout) layout = this.createTextureLayoutFromShape(dim);
       // graph inputs or initializers
-      td = this.createTextureData(layout, 'float',tensor.index - 1, input, tensor, 1);
+      td = this.createTextureData(layout, 'float', tensor.TextureID, tensor.output, tensor, 1);
     }
-    else {
-      console.log( `Retrieving TextureData from cache: [${tensor.index - 1}]`);
-    }
+    else console.log(`Retrieving TextureData from cache: [${tensor.TextureID}]`);
     return td;
   }
   /**
@@ -58,8 +56,8 @@ class WebGL {
    * Usage = Encoder.Usage.Default.
    * @param dataType the tensor data type
    */
-  createTextureDataFromLayout(layout, dataType,tensor) {
-    return this.createTextureData(layout, dataType,tensor.index, tensor.output, tensor, 1 /* UploadOnly */);
+  createTextureDataFromLayout(layout, dataType, tensor) {
+    return this.createTextureData(layout, dataType, tensor.TextureID, tensor.output, tensor, 1 /* UploadOnly */);
   }
   /**
    * Create a TextureData object using the given data and bind to the given tensor.
@@ -71,12 +69,12 @@ class WebGL {
    * @param tensor the tensor to bind. tensor's data is ignored.
    */
   createTextureDataFromLayoutBindTensor(layout, dataType, data, tensor) {
-    return this.createTextureData(layout, dataType,index, data, tensor, 1 /* UploadOnly */);
+    return this.createTextureData(layout, dataType, tensor.TextureID, data, tensor, 1 /* UploadOnly */);
   }
-  createTextureData(layout, dataType = 'float32',index, data, tensor, usage) {
+  createTextureData(layout, dataType = 'float32', TextureID, data, tensor, usage) {
     console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
     const texture = this.textureManager.createTextureFromLayout(dataType, layout, data, usage);
-    return this.createTextureDataFromTexture(layout, dataType, texture, tensor,index);
+    return this.createTextureDataFromTexture(layout, dataType, texture, tensor, TextureID);
   }
   /**
    * Create a TextureData object, using the given texture.
@@ -90,9 +88,9 @@ class WebGL {
   }
   createTextureDataFromTexture(layout, dataType, texture, tensor, tensorId) {
     const textureData = Object.assign(Object.assign({}, layout), {
-      gldata: (id) => {
-          return this.readTexture(textureData);
-        }, texture
+      gldata: () => {
+        return this.readTexture(textureData);
+      }, texture
     });
     this.setTextureData(tensorId, textureData);
     return textureData;
@@ -100,15 +98,15 @@ class WebGL {
   /**
    * Create a TextureLayout object from a tensor. If a related texture data is found, returns the cached texture layout.
    */
-  getOrCreateTextureLayout(tensor, channels = 1, unpackedShape) {
-    const td = this.getTextureData(tensor.index - 1);
+  getOrCreateTextureLayout(TextureID,dims, channels = 1, unpackedShape) {
+    const td = this.getTextureData(TextureID);
     if (td) return td;
-    return this.createTextureLayoutFromShape(channels === 1 ? [tensor.b, tensor.c, tensor.h, tensor.w] : getPackedShape([tensor.b, tensor.c, tensor.h, tensor.w]), channels, unpackedShape);
+    return this.createTextureLayoutFromShape(channels === 1 ? dims : getPackedShape(dims), channels, unpackedShape);
   }
   /**
    * Create a TextureLayout object from shape.
    */
-  createTextureLayoutFromShape(shape,channels = 1, unpackedShape, prefs) {
+  createTextureLayoutFromShape(shape, channels = 1, unpackedShape, prefs) {
     const [width, height] = this.computeTextureWH(shape, prefs);
     let inferredDims = shape;
     if (shape.length === 0) {
@@ -138,18 +136,18 @@ class WebGL {
     }
     return this.textureManager.readTexture(textureData, 'float32', textureData.channels);
   }
-/**
- * This strategy try to find the minimal max(W,H) that fulfills (W * H == totalSize)
- */
+  /**
+   * This strategy try to find the minimal max(W,H) that fulfills (W * H == totalSize)
+   */
   computeTextureWH(shape, prefs) {
     // scalar tensor
     if (shape.length === 0) return [1, 1];
     const maxTextureSize = this.glContext.maxTextureSize;
     const totalSize = shape.reduce((a, b) => a * b);
     let width = Math.floor(Math.sqrt(totalSize));
-    for (; width < maxTextureSize && width < totalSize; width++) 
-      if (totalSize % width === 0) 
-          break;
+    for (; width < maxTextureSize && width < totalSize; width++)
+      if (totalSize % width === 0)
+        break;
     if (width >= maxTextureSize || totalSize % width !== 0) {
       throw new Error(`The given dimensions are outside this GPU\'s boundaries: ${shape}`);
     }
@@ -186,7 +184,7 @@ function getPackedShape(unpackedShape) {
  * the current browsers capabilities
  * The order is from higher/most recent versions to most basic
  */
- function createWebGLContext(contextId) {
+function createWebGLContext(contextId) {
   let context;
   if ((!contextId || contextId === 'webgl2') && 'webgl2' in WebGL.cache) {
     context = WebGL.cache.webgl2;

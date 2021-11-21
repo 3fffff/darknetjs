@@ -1,33 +1,34 @@
 "use strict";
 
 class WebGLBatchNormalization {
-  static createProgramInfo(handler, inputs) {
-    const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t));
-    const outputShape = inputs[0].dims.slice();
+  static createProgramInfo(handler, outputShape, inputs) {
+    const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape));
     const rank = outputShape.length;
     const scale = inputLayouts[1];
     const glsl = getGlsl(handler.glContext.version);
+    const epsilon = 0.000001
     const shaderSource = `
       float process(int[${rank}] indices) {
         vec2 position = offsetToCoords(indices[1], ${scale.width}, ${scale.height});
         float scale = getColorAsFloat(${glsl.texture2D}(Scale, position));
         float mean = getColorAsFloat(${glsl.texture2D}(Mean, position));
         float variance = getColorAsFloat(${glsl.texture2D}(Variance, position));
-        float b = getColorAsFloat(${glsl.texture2D}(B, position));
+        float bias = getColorAsFloat(${glsl.texture2D}(Bias, position));
 
-        return scale * ( (_A(indices) - mean) / sqrt(variance + float(${this.epsilon})) ) + b;
+        return scale * ( (_A(indices) - mean) / sqrt(variance + float(${epsilon})) ) + bias;
       }`;
     return {
       inputLayouts,
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers: ['A', 'Scale', 'B', 'Mean', 'Variance'],
+      samplers: ['A', 'Scale', 'Bias', 'Mean', 'Variance'],
       shaderSource
     };
   }
-  static createRunData(handler, programInfo, inputs) {
-    const inputTDs = [handler.getOrCreateTextureData(inputs[0], programInfo.inputLayouts[0])];
+  static createRunData(handler, inputs) {
+    const inputTDs = [handler.getOrCreateTextureData(inputs[0], this.glProg.inputLayouts[0])];
     inputs.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
-    const outputTD = handler.createTextureDataFromLayout(programInfo.outputLayout, inputTDs[0].tensor.type);
+    console.log(inputTDs)
+    const outputTD = handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32');
     return { inputTextureDatas: inputTDs, outputTextureData: outputTD, uniformData: {} };
   }
 }

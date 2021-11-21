@@ -1,44 +1,42 @@
 "use strict";
 class WebGLMatMul {
-  createProgramInfo(handler, layers) {
-    const aShape = inputs[0].dims;
-    const bShape = inputs[1].dims;
-    const outputShape = BroadcastUtil.calcShape(aShape, bShape, true);
-    if (!outputShape) {
-      throw new Error('Can\'t use matmul on the given tensors');
-    }
-    const rank = outputShape.length;
-    const arank = aShape.length;
-    const brank = bShape.length;
-    const sharedDim = aShape[aShape.length - 1];
-    const shaderSource = `
+   static createProgramInfo(handler, l,inputs) {
+        let sharedDim = inputs[0].shape[inputs[0].length - 1];
+        let line = `value += _A(a) * _B(b);`;
+        const rank = oShape.length;
+        const shaderSource = `
       float process(int indices[${rank}]) {
-          int a[${arank}];
-          int b[${brank}];
-          bcastMatmulIndices_A(indices, a);
-          bcastMatmulIndices_B(indices, b);
+          int a[${rank}];
+          int b[${rank}];
+          ${declareC}
 
-          float value;
+          copyVec(indices, a);
+          copyVec(indices, b);
+          ${broadcastC}
+
+          float value = 0.0;
           for (int k=0; k<${sharedDim}; ++k) {
-              a[${arank - 1}] = k;
-              b[${brank - 2}] = k;
-              value += _A(a) * _B(b);
+              a[${rank - 1}] = k;
+              b[${rank - 2}] = k;
+              ${line}
           }
           return value;
       }`;
-    return {
-      inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t)),
-      outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers: ['A', 'B'],
-      shaderSource,
-    };
-  }
-  createRunData(handler, programInfo, inputs) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, programInfo.inputLayouts[i]));
-    return {
-      inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(programInfo.outputLayout, inputTDs[0].tensor.type),
-      uniformData: {}
-    };
-  }
+        const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID,t.shape));
+        console.log(inputLayouts)
+        return {
+            inputLayouts,
+            outputLayout: handler.createTextureLayoutFromShape(oShape),
+            samplers: ['A', 'B'],
+            shaderSource,
+        };
+    }
+    static createRunData(handler, inputs) {
+        const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, this.glProg.inputLayouts[i]));
+        return {
+            inputTextureDatas: inputTDs,
+            outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32",this),
+            uniformData: { }
+        };
+    }
 }

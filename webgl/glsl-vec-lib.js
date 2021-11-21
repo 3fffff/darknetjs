@@ -8,9 +8,6 @@ class VecGlslLib extends GlslLib {
   constructor(context) {
     super(context);
   }
-  getCustomTypes() {
-    return {};
-  }
   getFunctions() {
     return Object.assign(Object.assign(Object.assign(Object.assign({}, this.binaryVecFunctions()), this.copyVec()), this.setVecItem()), this.getVecItem());
   }

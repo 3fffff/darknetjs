@@ -149,8 +149,8 @@ class WebGLConv {
     };
   }
   createDotProductProgramInfo(inferenceHandler, im2colLayout, inputs, outputShape) {
-    const xshape = inputs[0].dims.slice();
-    const kshape = inputs[1].dims.slice();
+    const xshape = [l.batch, l.c, l.h, l.w];
+    const kshape = [l.batch, l.filters, l.size, l.size];
     const adjustedKernelShape = [kshape[0], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / 4)];
     const kLayout = inferenceHandler.createTextureLayoutFromShape(adjustedKernelShape, 4, [adjustedKernelShape[0], adjustedKernelShape[1] * 4], { breakAxis: 1 });
     let bLayout;
@@ -222,18 +222,6 @@ class WebGLConv {
       outputShape[0], outputShape[2], outputShape[3],
       Math.ceil(inputShape[1] * kernelShape[2] * kernelShape[3] / channels)
     ];
-  }
-  static calcOutputShape(inputShape, kernelShape, dilations, adjustPads, strides) {
-    const batchSize = inputShape[0];
-    const inputSpatialShape = inputShape.slice(2);
-    const spatialRank = inputSpatialShape.length;
-    const outChannels = kernelShape[0];
-    const kernelSpatialShape = kernelShape.slice(2);
-    const dilatedKernelShape = kernelSpatialShape.map((v, i) => v + (v - 1) * (dilations[i] - 1));
-    const inputSpatialShapeWithPad = inputSpatialShape.map((v, i) => v + adjustPads[i] + adjustPads[i + spatialRank]);
-    const outputSpatialShape = inputSpatialShapeWithPad.map((v, i) => Math.floor((v - dilatedKernelShape[i] + strides[i]) / strides[i]));
-    const outputShape = [batchSize, outChannels].concat(...outputSpatialShape);
-    return outputShape;
   }
   calcSharedDimReadSize(preferredBatchSize, sharedDim) {
     if (preferredBatchSize <= 0 || sharedDim < preferredBatchSize || sharedDim % preferredBatchSize !== 0) {

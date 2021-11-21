@@ -1,34 +1,58 @@
 "use strict";
 
 class WebGLActivation {
-  static createProgramInfo(handler, l) {
-    const outputShape = [l.b, l.out_c, l.out_h, l.out_w];
-    this.alpha = 0.1
+  static createProgramInfo(handler, outputShape,input) {
     const glsl = getGlsl(handler.glContext.version);
-    const shaderSource = `
-      void main() {
-        float v = ${glsl.texture2D}(A, TexCoords).r;
-        ${glsl.output} = vec4(v < 0.0 ? v * float(${this.alpha}) : v);
-      }
-      `;
+    const shaderSource =  getGlActivation(l.activation,glsl) 
     return {
       hasMain: true,
-      inputLayouts: [handler.getOrCreateTextureLayout(l)],
+      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID,input.shape)],
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers: ['A'],
       shaderSource,
     };
   }
-  static createRunData(handler, l,input) {
-    const inputTDs = [handler.getOrCreateTextureData(l,input, l.glProg.inputLayouts[0])];
+  static createRunData(handler) {
+    const inputTDs = [handler.getOrCreateTextureData(this, this.glProg.inputLayouts[0])];
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(l.glProg.outputLayout,'float32',l),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout,'float32',this),
       uniformData: {}
     }
   }
 }
-function glslRelu() {
+function getGlActivation(a,glsl) {
+  switch (a) {
+    case "LOGISTIC":
+      return glslSigmoid(glsl)
+    case "RELU":
+      return glslRelu(glsl);
+    case "LEAKY":
+      return glslLeakyRelu(glsl)
+    case "MISH":
+      return glslMish(glsl)
+    case "SWISH":
+      return glslSwish(glsl)
+    default:  throw Error("not recognized activation");
+  }
+}
+function glslElu(glsl){
+  const alpha = Math.exp(0.1)
+  return  `void main() {
+    float v = ${glsl.texture2D}(A, TexCoords).r;
+    ${glsl.output} = vec4(v >= 0.0 ? v: (exp(v) - 1.0) * ${alpha}); /* float number format */
+  }`
+}
+function glslLeakyRelu(glsl) {
+  const alpha = 0.1
+  return `
+  void main() {
+    float v = ${glsl.texture2D}(A, TexCoords).r;
+    ${glsl.output} = vec4(v < 0.0 ? v * float(${alpha}) : v);
+  }
+  `;
+}
+function glslRelu(glsl) {
   return `
   void main() {
     float v = ${glsl.texture2D}(A, TexCoords).r;
@@ -36,16 +60,24 @@ function glslRelu() {
   }
   `;
 }
-function glslSigmoid() {
-  return`
+function glslSigmoid(glsl) {
+  return `
   void main() {
     float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(1.0 / (1.0 + exp(-v));
+    ${glsl.output} = vec4(1.0 / (1.0 + exp(-v)));
   }
   `;
 }
-function glslTanh() {
+function glslSwish(glsl) {
   return`
+  void main() {
+    float v = ${glsl.texture2D}(A, TexCoords).r;
+    ${glsl.output} = vec4(v*(1.0 / (1.0 + exp(-v)));
+  }
+  `;
+}
+function glslTanh(glsl) {
+  return `
   void main() {
     float v = ${glsl.texture2D}(A, TexCoords).r;
     v = clamp(v, -10., 10.);
@@ -53,4 +85,37 @@ function glslTanh() {
     ${glsl.output} = vec4((v - 1.) / (v + 1.));
   }
   `;
+}
+function glslSoftplus(glsl) {
+  const threshold = 20
+  return `
+  void main() {
+    float threshold = float(${threshold});
+    float v = ${glsl.texture2D}(A, TexCoords).r;
+    if (v > threshold) ${glsl.output} = vec4(v);           
+    else if (v < -threshold) ${glsl.output} = vec4(exp(v)); 
+    else ${glsl.output} = vec4(log(exp(v) + 1.0));
+  }`
+}
+
+function glslMish(glsl) {
+  const threshold = 20
+  return `
+  float softplus(float v){
+    float threshold = float(${threshold});
+    if (v > threshold) v = v;           
+    else if (v < -threshold) v = exp(v); 
+    else v = log(exp(v) + 1.0);
+    return v;
+  }
+  float tang(float v){
+    v = clamp(v, -10., 10.);
+    v = exp(2.*v);
+    return (v - 1.) / (v + 1.);
+  }
+  void main() {
+    float v = ${glsl.texture2D}(A, TexCoords).r;
+    ${glsl.output} = vec4(v * tang(softplus(v)));
+  }
+  `
 }

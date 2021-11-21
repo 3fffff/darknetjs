@@ -8,9 +8,12 @@
     Nothing uploaded yet
   </div>
 </body>
-<script src="wasm-check.js"></script>
+<script src="wasm/wasm-check.js"></script>
+<script src="wasm/wforward.js"></script>
+<script src="wasm/wasm.js"></script>
+<script src="wasm/wasm-worker-init.js"></script>
+<script src="wasm/wasmfuncs.js"></script>
 <script src="webgl/glsl-definitions.js"></script>
-<script src="webgl/glsl-array-lib.js"></script>
 <script src="webgl/glsl-coordinate-lib.js"></script>
 <script src="webgl/glsl-encoding-lib.js"></script>
 <script src="webgl/glsl-fragcolor-lib.js"></script>
@@ -24,37 +27,19 @@
 <script src="webgl/program-manager.js"></script>
 <script src="webgl/webgl-context.js"></script>
 <script src="webgl/ops/activation.js"></script>
+<script src="webgl/ops/batch-normalization.js"></script>
+<script src="webgl/ops/sum.js"></script>
+<script src="webgl/ops/matmul.js"></script>
+<script src="webgl/ops/upsample.js"></script>
+<script src="webgl/ops/pool.js"></script>
 <script src="ImageProcess.js"></script>
-<script src="wforward.js"></script>
-<script src="wasm.js"></script>
-<script src="wasm-worker-init.js"></script>
 <script src="forward.js"></script>
-<script src="parse.js"></script>
+<script src="model.js"></script>
+<script src="backend.js"></script>
 <script>
-  const wasmSupport = wasmcheck.support()
-  const wasmSimd = wasmcheck.feature.simd
-  const wasmthread = wasmcheck.feature.threads
-  console.log(wasmthread)
-  if (wasmSupport && wasmthread) {
-    initWorkers(3).then(
-      () => {
-        WasmBinding.getInstance();
-        postMessage({ type: 'init-success' });
-      },
-    );
-  }
-  else if (wasmSupport && !wasmthread) {
-    initWorkers(0).then(
-      () => {
-        WasmBinding.getInstance();
-        postMessage({ type: 'init-success' });
-      },
-    );
-  }
   const imageLoader = new ImageLoader(768, 576);
-  var parser = new parse(false, true)
-  console.log(parser)
   var loadWeight = false
+  var backend = null
   function abortRead() {
     //  reader.abort();
   }
@@ -148,15 +133,16 @@
     loadwasm()*/
 
   const handleUploadWeight = async event => {
-    const file = event.target.files[0];
-    const blob = event.target.files[1];
+    const file = event.target.files[1];
+    const blob = event.target.files[0];
     const fileContentDiv = document.querySelector('div#file-content');
     try {
       const fileContents = await readUploadedFileAsText(file);
       const blb = await readUploadedBlob(blob)
       const weights = new DataView(blb);
-
-      parser.parse_network_cfg(fileContents, weights)
+      const model = new Model()
+      const layers = model.parse_network_cfg(fileContents, weights)
+      backend = new Backend(layers,false,false)
       await imageLoader.getImageData('./dog.jpg');
       document.getElementById("file-content").appendChild(imageLoader.canvas)
     } catch (e) {
@@ -170,10 +156,10 @@
       console.log(loadWeight)
       console.time()
       // WasmBinding.getInstance().dispose()
-      await parser.start(imageLoader.pixels)
+      await backend.start(imageLoader.pixels)
       console.timeEnd()
       const img = new ImageProcess()
-      const dets = img.get_network_boxes(parser.layers, 1, 1, 0.2, 0, 0);
+      const dets = img.get_network_boxes(backend.layers, 1, 1, 0.2, 0, 0);
       console.log(dets)
       const ctx = imageLoader.context
       ctx.beginPath();
@@ -190,14 +176,12 @@
   const handleDispose = async event => {
     const fileContentDiv = document.querySelector('div#file-content');
     try {
-      parser.layers = []
-      //parser = null
+      backend.layers = []
     } catch (e) {
       console.log(e)
       fileContentDiv.innerHTML = e.message;
     }
   };
-
   document.querySelector('input#primary-file-upload').addEventListener('change', handleUploadWeight);
   document.getElementById('start').addEventListener('click', handleSt);
   document.getElementById('dispose').addEventListener('click', handleDispose);

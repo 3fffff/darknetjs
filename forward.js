@@ -78,7 +78,15 @@ class Forward {
         for (let j = 0; j < N; ++j)
           C[i * N + j] += A[i * K + k] * B[k * N + j];
   }
-
+  static BatchActivate(l, out_size) {
+    for (let nc = 0; nc < l.batch * l.filters; nc++) {
+      const offset = nc * out_size;
+      if (l.batch_normalize == 1)
+        for (let i = 0; i < out_size; i++)l.output[offset + i] = l.scales[nc % l.filters] * ((l.output[offset + i] - l.mean[nc % l.filters]) / Math.sqrt(l.variance[nc % l.filters] + 0.000001)) + l.biases[nc % l.filters];
+      else if (l.biases.length != 0) for (let i = 0; i < out_size; i++)l.output[offset + i] += l.biases[nc % l.filters];
+    }
+    l.output = Forward.activate(l.output, l.activation);
+  }
   static convolutional_layer(layers) {
     const l = this
     const input = layers[l.index - 1].output
@@ -96,19 +104,32 @@ class Forward {
         Forward.matmul(l.weights.subarray(w_offset * group), col_buffer_data, l.output.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
       }
     }
+    Forward.BatchActivate(l, out_size)
+  }
+  static deconvolutional_layer(layers) {
+    const l = this
+    const input = layers[l.index - 1].output
+    const kernel_dim = l.size * l.size * l.c / l.groups;
+    const out_wh = l.out_h * l.out_w;
 
-    if (l.batch_normalize == 1) {
-      for (let nc = 0; nc < l.batch * l.out_c; nc++) {
-        const offset = nc * out_size;
-        for (let i = 0; i < out_size; i++)l.output[offset + i] = l.scales[nc % l.out_c] * ((l.output[offset + i] - l.mean[nc % l.out_c]) / Math.sqrt(l.variance[nc % l.out_c] + 0.000001));
+    const col_buffer_data = new Float32Array(kernel_dim * l.out_h * l.out_w);
+    const x_offset = l.c / l.groups * l.h * l.w;
+    const y_offset = l.out_w * l.out_h * l.out_c / l.groups;
+    const w_offset = l.filters * kernel_dim / l.groups;
+    const out_size = l.out_h * l.out_w;
+    for (let b = 0; b < l.batch; ++b) {
+      for (let group = 0; group < l.groups; ++group) {
+        Forward.matmul(l.weights.subarray(w_offset * group), input.subarray(x_offset * group), col_buffer_data, l.filters / l.groups, out_wh, kernel_dim);
+        Forward.im2col(col_buffer_data, l.output.subarray(y_offset * group), l.out_c / l.groups, l.out_h, l.out_w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
       }
     }
-
-    if (l.biases.length != 0)
-      for (let i = 0; i < l.filters; ++i)
-        for (let j = 0; j < out_size; ++j)
-          l.output[i * out_size + j] += l.biases[i];
-    l.output = Forward.activate(l.output, l.activation);
+    Forward.BatchActivate(l, out_size)
+  }
+  static connected_layer(layers) {
+    const l = this
+    const input = layers[l.index - 1].output
+    Forward.matmul(input, l.weights, l.output, l.batch, l.inputs, l.outputs);
+    Forward.BatchActivate(l, l.outputs)
   }
   static pool_layer(layers) {
     const l = this
@@ -133,11 +154,9 @@ class Forward {
                   const index = cur_w + l.w * (cur_h + l.h * (k + b * l.c));
                   valid = (cur_h >= 0 && cur_h < l.h && cur_w >= 0 && cur_w < l.w);
                   const val = (valid) ? input[index] : -Number.MAX_VALUE;
-                  if (l.type == 'LOCALAVG') {
-                    if (valid) {
-                      counter++;
-                      avg += input[index];
-                    }
+                  if (l.type == 'LOCALAVG' && valid) {
+                    counter++;
+                    avg += input[index];
                   }
                   else max = (val > max) ? val : max;          // get max value
                 }
@@ -150,7 +169,6 @@ class Forward {
       }
     }
   }
-
   static route_layer(layers) {
     const l = this
     let offset = 0;
@@ -219,12 +237,31 @@ class Forward {
             l.output[b * l.out_c * l.out_w * out_h + c * l.out_w * l.out_h + h * l.out_w + w] =
               input[b * l.c * l.w * h + c * l.factor * l.w * h + ~~(h * l.w + w % (l.factor) * l.w * l.h) + ~~(w / l.factor)];
   }
+
+  static scale_channels_layer(layers) {
+    for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[~~(i / (this.out_w * this.out_h))] * layers[this.indexs].output[i];
+    this.output = Forward.activate(this.output, this.activation);
+  }
+
+  static shortcut_layer(layers) {
+    for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[i] + layers[this.indexs].output[i];
+    this.output = Forward.activate(this.output, this.activation);
+  }
+  static sam_layer(layers) {
+    for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[i] * layers[this.indexs].output[i];
+    this.output = Forward.activate(this.output, this.activation);
+  }
+
+  static YOLODROP(layers) {
+    this.output = layers[this.index - 1].output;
+  }
+
   static logistic(x) { return (1 / (1 + Math.exp(-x))); }
   static leaky(x) { return ((x > 0) ? x : 0.1 * x); }
   static relu(x) { return Math.max(0, x); }
   static tanh(x) { return (2 / (1 + Math.exp(-2 * x)) - 1); }
   static softplus(x, threshold) {
-    if (x > threshold) return x;                // too large
+    if (x > threshold) return x;                    // too large
     else if (x < -threshold) return Math.exp(x);    // too small
     return Math.log(Math.exp(x) + 1);
   }
@@ -252,105 +289,6 @@ class Forward {
         for (let i = 0; i < x.length; i++)x[i] = Forward.swish(x[i]);
         return x;
       default: return x;
-    }
-  }
-  static scale_channels_layer(layers) {
-    for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[~~(i / (this.out_w * this.out_h))] * layers[this.indexs].output[i];
-    this.output = Forward.activate(this.output, this.activation);
-  }
-
-  static shortcut_layer(layers) {
-    for (let j = 0; j < this.output.length; ++j)this.output[j] = layers[this.index - 1].output[j] + layers[this.indexs].output[j];
-    this.output = Forward.activate(this.output, this.activation);
-  }
-  static sam_layer(layers) {
-    for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[i] * layers[this.indexs].output[i];
-    this.output = Forward.activate(this.output, this.activation);
-  }
-
-  static YOLODROP(layers) {
-    this.output = layers[this.index - 1].output;
-  }
-  static async WasmConv(layers) {
-    const l = this
-    const X = layers[l.index - 1].output
-    const active = { 'LOGISTIC': 1, 'RELU': 2, 'LEAKY': 3, 'LINEAR': 0, 'MISH': 4, 'SWISH': 5 }
-    const numThreads = (l.batch !== 1 || l.groups !== 1 || l.filters === 1 || WasmBinding.workerNumber <= 0) ? 1 : Math.min(l.filters, numWebWorkers + 1);
-    if (numThreads == 1)
-      WasmBinding.getInstance().ccall(
-        '_conv_f32', [X, 'float32ptr'], [[l.batch, l.c, l.h, l.w], 'int32ptr'], [l.weights, 'float32ptr'],
-        [[l.filters, l.c, l.size, l.size], 'int32ptr'], [l.output, 'float32ptr', 'out'], [[l.batch, l.out_c, l.out_h, l.out_w], 'int32ptr'],
-        [l.biases.length > 0 ? l.biases : null, 'float32ptr'], [[l.dilation, l.dilation], 'int32ptr'], [l.groups, 'int32'],
-        [[l.pad, l.pad, l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'], [active[l.activation], 'int32']);
-    else {
-      const workerTasks = new Array(numThreads - 1);
-      // data pre-processing
-      const wDimsSp = [l.filters, l.c / l.groups, l.size, l.size];
-      wDimsSp[0] = ~~(l.filters / numThreads);
-      const wSizeSp = wDimsSp[0] * wDimsSp[1] * wDimsSp[2] * wDimsSp[3];
-      const wDimsFinal = [l.filters, l.c / l.groups, l.size, l.size];
-      wDimsFinal[0] = l.filters - (numThreads - 1) * wDimsSp[0];
-      const yDimsSp = [l.batch, wDimsSp[0], l.out_h, l.out_w];
-      const ySizeSp = wDimsSp[0] * l.out_h * l.out_w;
-      const yDimsFinal = [l.batch, wDimsFinal[0], l.out_h, l.out_w];
-      const wArray = new Array(numThreads);
-      const yArray = new Array(numThreads);
-      const bArray = new Array(numThreads);
-      // function calls
-      for (let i = 0; i < numThreads; ++i) {
-        if (i !== numThreads - 1) {
-          wArray[i] = l.weights.subarray(i * wSizeSp, (i + 1) * wSizeSp);
-          yArray[i] = l.output.subarray(i * ySizeSp, (i + 1) * ySizeSp);
-          if (l.biases) bArray[i] = l.biases.subarray(i * wDimsSp[0], (i + 1) * wDimsSp[0]);
-          workerTasks[i] = WasmBinding.getInstance().ccallRemote(i, '_conv_f32', [X, 'float32ptr'], [[l.batch, l.c, l.h, l.w], 'int32ptr'],
-            [wArray[i], 'float32ptr'], [wDimsSp, 'int32ptr'], [yArray[i], 'float32ptr', 'out'], [yDimsSp, 'int32ptr'],
-            [bArray.length > 0 ? bArray[i] : null, 'float32ptr'], [[l.dilation, l.dilation], 'int32ptr'], [l.groups, 'int32'],
-            [[l.pad, l.pad, l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'], [active[l.activation], 'int32']);
-        }
-        else {
-          wArray[i] = l.weights.subarray(i * wSizeSp);
-          yArray[i] = l.output.subarray(i * ySizeSp);
-          if (l.biases) bArray[i] = l.biases.subarray(i * wDimsSp[0]);
-          WasmBinding.getInstance().ccall('_conv_f32', [X, 'float32ptr'], [[l.batch, l.c, l.h, l.w], 'int32ptr'],
-            [wArray[i], 'float32ptr'], [wDimsFinal, 'int32ptr'], [yArray[i], 'float32ptr', 'out'],
-            [yDimsFinal, 'int32ptr'], [bArray.length > 0 ? bArray[i] : null, 'float32ptr'],
-            [[l.dilation, l.dilation], 'int32ptr'], [l.groups, 'int32'], [[l.pad, l.pad, l.pad, l.pad], 'int32ptr'],
-            [[l.stride_x, l.stride_y], 'int32ptr'], [active[l.activation], 'int32']);
-        }
-      }
-      await Promise.all(workerTasks);
-    }
-  }
-
-  static async WasmPool(layers) {
-    const l = this
-    const X = layers[l.index - 1].output
-    const numThreads = (l.batch !== 1 || l.c === 1 || numWebWorkers <= 0) ? 1 : Math.min(l.c, numWebWorkers + 1);
-    if (numThreads === 1)
-      WasmBinding.getInstance().ccall('_pool_f32', [X, 'float32ptr'], [[l.batch, l.c, l.h, l.w], 'int32ptr'], [l.output, 'float32ptr', 'out'],
-        [[l.batch, l.out_c, l.out_h, l.out_w], 'int32ptr'], [l.size, 'int32'], [[l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'],
-        [l.type === 'AVGPOOL' ? true : false, 'bool']);
-    else {
-      // data pre-processing
-      const xDimsSp = [l.batch, l.c, l.h, l.w];
-      xDimsSp[1] = ~~(l.c / numThreads);
-      const xSizeSp = xDimsSp[0] * xDimsSp[1] * xDimsSp[2] * xDimsSp[3];
-      const xDimsFinal = [l.batch, l.c, l.h, l.w];
-      xDimsFinal[1] = l.c - (numThreads - 1) * xDimsSp[1];
-      const yDimsSp = [l.batch, xDimsSp[1], l.out_h, l.out_w];
-      const ySizeSp = l.batch * xDimsSp[1] * l.out_h * l.out_w;
-      const yDimsFinal = [l.batch, xDimsFinal[1], l.out_h, l.out_w];
-      const workerTasks = new Array(numThreads - 1);
-      // function calls
-      for (let i = 0; i < numThreads; ++i) {
-        if (i !== numThreads - 1) workerTasks[i] = WasmBinding.getInstance().ccallRemote(i, '_pool_f32', [X.subarray(i * xSizeSp, (i + 1) * xSizeSp), 'float32ptr'],
-          [xDimsSp, 'int32ptr'], [l.output.subarray(i * ySizeSp, (i + 1) * ySizeSp), 'float32ptr', 'out'], [yDimsSp, 'int32ptr'], [l.size, 'int32'],
-          [[l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'], [l.type === 'AVGPOOL' ? true : false, 'bool']);
-        else WasmBinding.getInstance().ccall('_pool_f32', [X.subarray((numThreads - 1) * xSizeSp), 'float32ptr'], [xDimsFinal, 'int32ptr'],
-          [l.output.subarray((numThreads - 1) * ySizeSp), 'float32ptr', 'out'], [yDimsFinal, 'int32ptr'], [l.size, 'int32'], [[l.pad, l.pad], 'int32ptr'],
-          [[l.stride_x, l.stride_y], 'int32ptr'], [l.type === 'AVGPOOL' ? true : false, 'bool']);
-      }
-      await Promise.all(workerTasks);
     }
   }
 }

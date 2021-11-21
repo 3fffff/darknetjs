@@ -1,18 +1,55 @@
-class parse {
-  constructor(wasm, webgl) {
-    this.wasm = wasm ? true : false
-    this.webgl = webgl ? new WebGL("webgl2") : null
-    const l = { index: 1, b: 1, c: 3, h: 608, w: 608, out_c: 3, out_h: 608, out_w: 608, output: Array(3 * 608 * 608) }
-    const input = Array(3 * 608 * 608)
-    for (let i = 0; i < input.length; i++)input[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
-    l.glProg = WebGLActivation.createProgramInfo(this.webgl, l)
-    l.glData = WebGLActivation.createRunData(this.webgl, l, input)
-    const artifact = this.webgl.programManager.build(l.glProg);
-    this.webgl.programManager.setArtifact(l.index, artifact);
-    this.webgl.programManager.run(artifact, l.glData);
-    console.log(l)
-    console.log(input)
-    console.log(l.glData.outputTextureData.gldata(1))
+class Model {
+  constructor() {
+    ////////////////////////////////////////////simple testing
+    /*this.webgl = new WebGL("webgl2") 
+    const l0 = { index: 0, TextureID: "t0", b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
+    const l1 = { index: 1, TextureID: "t1", b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
+    const l2 = { index: 2, type: "SHORTCUT", activation: "RELU",glInputs:[{  TextureID: "t"+(l.index-1),shape:[l.b, l.c, l.h, l.w]}, { TextureID: "t"+l.indexs,shape:[l.b, l.c, l.h, l.w] }], TextureID:"t2",b: 1, c: 16, h: 304, w: 304, n: 16, indexs: 0, out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
+    const l3 = { index: 3, type: "SHORTCUT", activation: "RELU", TextureID:"t3", glInputs:[{TextureID: "t2",shape:[l.b, l.c, l.h, l.w]}], b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
+    const BN = { index:2, type: "BATCHNORM",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
+    const K = { index:2, type: "MATMUL",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
+    const MAXPOOL = { index:2, type: "MAXPOOL",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
+    K.glProg = WebGLMatMul.createProgramInfo(this.webgl, K)
+    K.glData = WebGLMatMul.createRunData
+    const inputs = [{ index: 2, TextureID: "t1",shape:[1000,1],output:K.weights}, { index: 2, TextureID: "t2w",shape:[1,1000],output:new Float32Array(1000) }]
+    l3.glData = WebGLActivation.createRunData
+    K.artifact = this.webgl.programManager.build(K.glProg);
+    for (let i = 0; i < l0.output.length; i++)inputs[0].output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
+    for (let i = 0; i < l1.output.length; i++)inputs[1].output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
+    K.runData = K.glData(this.webgl, inputs);
+    console.log(K)
+    this.webgl.programManager.run(K.artifact, K.runData);
+    console.log(K.runData.outputTextureData.gldata())
+    const output = new Float32Array(1000000)
+    Forward.matmul(inputs[0].output,inputs[1].output, output,1000, 1000, 1);
+    console.log(output)*/
+    /* const lr = [l2, l3]
+     for (let i = 0; i < l0.output.length; i++)l0.output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
+     for (let i = 0; i < l1.output.length; i++)l1.output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
+     const inputs = [{ index: l2.index, TextureID:"t2",TextureID: "t1", b: l1.b, c: l1.c, h: l1.h, w: l1.w, output: l1.output }, { index: l2.index, TextureID: "t0", b: l0.b, c: l0.c, h: l0.h, w: l0.w, output: l0.output }]
+     l2.glProg = WebGLSum.createProgramInfo(this.webgl, l2)
+     l2.glData = WebGLSum.createRunData
+     console.log(l2.glProg)
+     l2.artifact = this.webgl.programManager.build(l2.glProg);
+     l2.runData = l2.glData(this.webgl, inputs);
+     l3.glProg = WebGLActivation.createProgramInfo(this.webgl, l3)
+     l3.glData = WebGLActivation.createRunData
+     console.log(l3.glProg)
+     l3.artifact = this.webgl.programManager.build(l3.glProg);
+     this.webgl.programManager.setArtifact(lr[0].TextureID, lr[0].artifact);
+     this.webgl.programManager.setArtifact(lr[1].TextureID, lr[1].artifact);
+     lr[1].runData = lr[1].glData(this.webgl, lr[0].runData.outputTextureData.gldata());
+     console.log(inputs[0].output)
+     console.log(inputs[1].output)
+     //  for (let i = 0; i < lr.length; i++) {
+     console.time()
+     this.webgl.programManager.run(lr[0].artifact, lr[0].runData);
+     console.log(lr[0].runData.outputTextureData.gldata())
+     this.webgl.programManager.run(lr[1].artifact, lr[1].runData);
+     console.log(lr[1].runData.outputTextureData.gldata())
+     console.timeEnd()*/
+    // }
+    ////////////////////////////////////////////////
   }
   option_find_int(options, name, def) {
     const res = options[name]
@@ -37,7 +74,7 @@ class parse {
 
   parse_convolutional(options, param) {
     const size = this.option_find_int(options, 'size', 1);
-    const n = this.option_find_int(options, 'filters', 1);
+    const filters = this.option_find_int(options, 'filters', 1);
     const pad = this.option_find_int(options, 'pad', 0);
     const padding = pad ? (size >> 1) : this.option_find_int(options, 'padding', 0);
     let stride_x = this.option_find_int(options, 'stride_x', -1);
@@ -50,7 +87,7 @@ class parse {
     const l = {};
     l.type = "CONVOLUTIONAL";
     l.h = parseInt(param.height); l.w = parseInt(param.width); l.c = parseInt(param.channels);
-    l.filters = n;
+    l.filters = filters;
     l.groups = this.option_find_int(options, 'groups', 1);
     l.batch = options.batch;
     l.stride_x = stride_x;
@@ -60,24 +97,63 @@ class parse {
     l.batch_normalize = this.option_find_int(options, 'batch_normalize', 0);
     l.dilation = 1
 
-    l.weights = new Float32Array(l.c / l.groups * n * size * size);
+    l.weights = new Float32Array(l.c / l.groups * filters * size * size);
 
-    l.biases = new Float32Array(n);
+    l.biases = new Float32Array(filters);
 
     l.out_h = Math.floor((l.h + 2 * l.pad - l.size) / l.stride_y) + 1;
     l.out_w = Math.floor((l.w + 2 * l.pad - l.size) / l.stride_x) + 1;
-    l.out_c = n;
+    l.out_c = filters;
     l.outputs = l.out_h * l.out_w * l.out_c;
     l.inputs = l.w * l.h * l.c;
 
     l.output = new Float32Array(l.batch * l.outputs);
-    l.forward = this.wasm ? Forward.WasmConv : Forward.convolutional_layer
+    l.forward = Forward.convolutional_layer
     if (l.batch_normalize != 0) {
-      l.scales = new Float32Array(n);
-      for (let i = 0; i < n; ++i)l.scales[i] = 1;
-      l.mean = new Float32Array(n);
-      l.variance = new Float32Array(n);
+      l.scales = new Float32Array(filters);
+      for (let i = 0; i < filters; ++i)l.scales[i] = 1;
+      l.mean = new Float32Array(filters);
+      l.variance = new Float32Array(filters);
     }
+    l.activation = this.option_find_str(options, "activation", "logistic").toUpperCase();
+    this.options_from_layer(options, l)
+    return l;
+  }
+  parse_deconvolutional(options, param) {
+    const size = this.option_find_int(options, 'size', 1);
+    const filters = this.option_find_int(options, 'filters', 1);
+    const pad = this.option_find_int(options, 'pad', 0);
+    const padding = pad ? (size >> 1) : this.option_find_int(options, 'padding', 0);
+    let stride_x = this.option_find_int(options, 'stride_x', -1);
+    let stride_y = this.option_find_int(options, 'stride_y', -1);
+    if (stride_x < 1 || stride_y < 1) {
+      const stride = this.option_find_int(options, 'stride', 1);
+      stride_x = stride_x < 1 ? stride : stride_x;
+      stride_y = stride_y < 1 ? stride : stride_y;
+    }
+    const l = {};
+    l.type = "DECONVOLUTIONAL";
+    l.h = parseInt(param.height); l.w = parseInt(param.width); l.c = parseInt(param.channels);
+    l.filters = filters;
+    l.batch = options.batch;
+    l.stride_x = stride_x;
+    l.stride_y = stride_y;
+    l.size = size;
+    l.pad = padding;
+    l.dilation = 1
+
+    l.weights = new Float32Array(l.c / l.groups * filters * size * size);
+
+    l.biases = new Float32Array(filters);
+
+    l.out_h = Math.floor((l.h + 2 * l.pad - l.size) / l.stride_y) + 1;
+    l.out_w = Math.floor((l.w + 2 * l.pad - l.size) / l.stride_x) + 1;
+    l.out_c = filters;
+    l.outputs = l.out_h * l.out_w * l.out_c;
+    l.inputs = l.w * l.h * l.c;
+
+    l.output = new Float32Array(l.batch * l.outputs);
+    l.forward = Forward.deconvolutional_layer
     l.activation = this.option_find_str(options, "activation", "logistic").toUpperCase();
     this.options_from_layer(options, l)
     return l;
@@ -121,7 +197,7 @@ class parse {
     const output_size = l.out_h * l.out_w * l.out_c * l.batch;
     l.indexes = new Int32Array(output_size);
     l.output = new Float32Array(output_size);
-    l.forward = this.wasm ? Forward.WasmPool : Forward.pool_layer
+    l.forward = Forward.pool_layer
     this.options_from_layer(options, l)
     return l;
   }
@@ -211,7 +287,7 @@ class parse {
       num = n;
       return mask;
     }
-    else { return null; }
+    else return null;
   }
   parse_upsample(options, param) {
     const stride = this.option_find_int(options, "stride", 2);
@@ -389,15 +465,15 @@ class parse {
     l.forward = Forward.sam_layer
     return l;
   }
-  make_connected_layer(batch, steps, inputs, outputs, activation, batch_normalize) {
+  parse_connected_layer(options, param) {
     const total_batch = batch * steps;
     const l = {};
     l.type = "CONNECTED";
 
-    l.inputs = inputs;
-    l.outputs = outputs;
-    l.batch = batch;
-    l.batch_normalize = batch_normalize;
+    l.inputs = param.inputs;
+    l.outputs = param.outputs;
+    l.batch = 1;
+    l.batch_normalize = this.option_find_int(options, 'batch_normalize', 0);
     l.h = 1;
     l.w = 1;
     l.c = inputs;
@@ -408,33 +484,40 @@ class parse {
     l.size = 1;
     l.stride = l.stride_x = l.stride_y = 1;
     l.pad = 0;
-    l.activation = activation;
+
     l.learning_rate_scale = 1;
-    l.groups = 1;
-    l.dilation = 1;
 
-    l.output = new Float32Array(total_batch * outputs);
+    l.output = new Float32Array(total_batch * l.outputs);
 
-    l.weights = new Float32Array(outputs * inputs);
-    l.biases = new Float32Array(outputs);
-    //l.forward = Forward.connected_layer
+    l.weights = new Float32Array(l.outputs * l.inputs);
+    l.biases = new Float32Array(l.outputs);
+    l.forward = Forward.connected_layer
+    if (l.batch_normalize != 0) {
+      l.scales = new Float32Array(n);
+      for (let i = 0; i < n; ++i)l.scales[i] = 1;
+      l.mean = new Float32Array(n);
+      l.variance = new Float32Array(n);
+    }
+    l.activation = this.option_find_str(options, "activation", "logistic").toUpperCase();
+    this.options_from_layer(options, l)
     return l;
   }
-  make_channel_shuffle_layer(batch, w, h, c, groups) {
+  parse_shuffle_channel(options, param) {
     const l = {};
-    l.type = "CHANNEL_SHUFFLE";
-    l.batch = batch;
-    l.w = w;
-    l.h = h;
-    l.c = c;
-    l.out_w = w;
-    l.out_h = h;
-    l.out_c = c;
+    l.type = "SHUFFLE_CHANNEL";
+    l.batch = 1;
+    l.w = parseInt(param.width);
+    l.h = parseInt(param.height);
+    l.c = parseInt(param.channels);
+    l.out_w = l.w;
+    l.out_h = l.h;
+    l.out_c = l.c;
     l.groups = groups;
     l.outputs = l.out_w * l.out_h * l.out_c;
     l.inputs = l.w * l.h * l.c;
-    l.output = new Float32Array(l.outputs * batch);
+    l.output = new Float32Array(l.outputs * l.batch);
     l.forward = Forward.shuffle_channels
+    this.options_from_layer(options, l)
     return l;
   }
   read_cfg(cfg) {
@@ -457,12 +540,10 @@ class parse {
             break;
           }
           default: {
-            if (!section || line[0] < 0x20 || line[0] > 0x7E)
-              throw new Error("Invalid cfg '" + text.replace(/[^\x20-\x7E]+/g, '').trim() + "' at line " + i.toString() + ".");
+            if (!section || line[0] < 0x20 || line[0] > 0x7E) throw new Error("Invalid cfg '" + text.replace(/[^\x20-\x7E]+/g, '').trim() + "' at line " + i.toString() + ".");
             if (section) {
               const index = line.indexOf('=');
-              if (index < 0)
-                throw new Error("Invalid cfg '" + text.replace(/[^\x20-\x7E]+/g, '').trim() + "' at line " + i.toString() + ".");
+              if (index < 0) throw new Error("Invalid cfg '" + text.replace(/[^\x20-\x7E]+/g, '').trim() + "' at line " + i.toString() + ".");
               const key = line.substring(0, index);
               const value = line.substring(index + 1);
               section.options[key] = value;
@@ -480,11 +561,10 @@ class parse {
     offset += 4
     const minor = data.getInt32(offset, true);
     offset += 8
-    if ((major * 10 + minor) >= 2) { data.getInt32(offset, true); offset += 8 }
-    else { data.getInt32(offset, true); offset += 4 }
+    offset = ((major * 10 + minor) >= 2) ? offset + 8 : offset + 4
     for (let j = 1; j < layers.length; ++j) {
       if (layers[j].dontload != 0) continue;
-      if (layers[j].type == "CONVOLUTIONAL") {
+      if (layers[j].type == "CONVOLUTIONAL" || layers[j].type == "DECONVOLUTIONAL" || layers[j].type == "CONNECTED") {
         const l = layers[j]
         const num = l.filters * l.c / l.groups * l.size * l.size;
         for (let i = 0; i < l.filters; i++) { l.biases[i] = data.getFloat32(offset, true); offset += 4 }
@@ -511,8 +591,7 @@ class parse {
   parse_network_cfg(filename, weights) {
     let sections = this.read_cfg(filename);
     const layers = [];
-    if (sections[0].type == "[net]" && sections[0].type == "[network]")
-      new Error("First section must be [net] or [network]");
+    if (sections[0].type == "[net]" && sections[0].type == "[network]") throw new Error("First section must be [net] or [network]");
     let net = {}
     net.w = this.option_find_int(sections[0].options, "width", 1);
     net.h = this.option_find_int(sections[0].options, "height", 1);
@@ -524,6 +603,8 @@ class parse {
       sections[i].options.index = i
       sections[i].options.batch = net.batch
       if (sections[i].type.toUpperCase() == 'CONVOLUTIONAL') l = this.parse_convolutional(sections[i].options, sections[i - 1].options);
+      else if (sections[i].type.toUpperCase() == 'DECONVOLUTIONAL') l = this.parse_deconvolutional(sections[i].options, sections[i - 1].options);
+      else if (sections[i].type.toUpperCase() == 'CONNECTED') l = this.parse_connected(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'SOFTMAX') l = this.parse_softmax(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'MAXPOOL') l = this.parse_maxpool(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'AVGPOOL') l = this.parse_avgpool(sections[i].options, sections[i - 1].options);
@@ -532,9 +613,10 @@ class parse {
       else if (sections[i].type.toUpperCase() == 'SHORTCUT') l = this.parse_shortcut(sections[i].options, layers);
       else if (sections[i].type.toUpperCase() == 'DROPOUT') l = this.parse_dropout(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'UPSAMPLE') l = this.parse_upsample(sections[i].options, sections[i - 1].options);
+      else if (sections[i].type.toUpperCase() == 'SHUFFLE_CHANNEL') l = this.parse_shuffle_channel(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'SCALE_CHANNELS') l = this.parse_scale_channels(sections[i].options, layers);
       else if (sections[i].type.toUpperCase() == 'SAM') l = this.parse_sam(sections[i].options, layers);
-      else console.log("Type not recognized: " + sections[i].type);
+      else throw new Error("Type not recognized: " + sections[i].type);
       l.dontload = this.option_find_int(sections[i].options, "dontload", 0);
       l.dontloadscales = this.option_find_int(sections[i].options, "dontloadscales", 0);
       l.index = i
@@ -543,10 +625,6 @@ class parse {
     }
     this.load_weights_upto_cpu(layers, weights, 1)
     console.log(layers)
-    this.layers = layers
-  }
-  async start(img) {
-    this.layers[0].output = ImageProcess.resize_image(img, this.layers[0].w, this.layers[0].h, 768, 576, 3)
-    for (let i = 1; i < this.layers.length; ++i)await this.layers[i].forward(this.layers)
+    return layers
   }
 }

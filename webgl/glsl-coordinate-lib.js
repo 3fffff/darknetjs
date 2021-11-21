@@ -10,9 +10,6 @@ class CoordsGlslLib extends GlslLib {
   getFunctions() {
     return Object.assign(Object.assign(Object.assign(Object.assign({}, this.offsetToCoords()), this.coordsToOffset()), this.toVec()), this.valueFrom());
   }
-  getCustomTypes() {
-    return {};
-  }
   /**
    * Produces a function that can map from
    * 2D normalzied coordinates (s,t) to a flat offset

@@ -2,12 +2,8 @@
 class WebGLConcat {
   createProgramInfo(handler, inputs) {
     const inputShape = inputs[0].dims.slice();
-    if (this.axis >= inputShape.length || this.axis < (-1 * inputShape.length)) {
-      throw new Error(`axis specified for concat doesn't match input dimensionality`);
-    }
-    if (this.axis < 0) {
-      this.axis = inputShape.length + this.axis;
-    }
+    if (this.axis >= inputShape.length || this.axis < (-1 * inputShape.length)) throw new Error(`axis specified for concat doesn't match input dimensionality`);
+    if (this.axis < 0) this.axis = inputShape.length + this.axis;
     // ensure all of the non-concatenated axes match each other
     // calculate the shape of the output tensor while we do that
     const outputShape = inputShape.slice(0);
@@ -15,13 +11,9 @@ class WebGLConcat {
       const dataNShape = inputs[i].dims.slice();
       for (let axisIndex = 0; axisIndex < inputShape.length; axisIndex++) {
         // add to the placeholder for computing output shape
-        if (axisIndex === this.axis) {
-          outputShape[this.axis] += dataNShape[axisIndex];
-        }
+        if (axisIndex === this.axis) outputShape[this.axis] += dataNShape[axisIndex];
         // ensure all non-cancatenated axes match each other
-        else if (inputShape[axisIndex] !== dataNShape[axisIndex]) {
-          throw new Error(`non concat dimensions must match`);
-        }
+        else if (inputShape[axisIndex] !== dataNShape[axisIndex]) throw new Error(`non concat dimensions must match`);
       }
     }
     const rank = outputShape.length;
@@ -75,10 +67,6 @@ class WebGLConcat {
           }
         }
       }`;
-  }
-  // TODO: Implement BinarySearch in GLSL
-  getTextureIndexWhereDataResidesBinarySearch(numberOfTensors) {
-    return this.getTextureIndexWhereDataResidesLinearSearch(numberOfTensors);
   }
   fetchDataFromCorrectTextureMethod(numberOfTensors, tensorRank) {
     const codeLines = [`float fetchDataFromCorrectTexture(int textureIndex, int indices[${tensorRank}]) {`];

@@ -1,52 +1,22 @@
 "use strict";
 class WebGLUpsample {
-  createProgramInfo(handler, inputs) {
-    const inputLayout = handler.getOrCreateTextureLayout(inputs[0]);
-    const [roi, scales, outputShape] = this.prepare(inputs);
-    this.roiCache = roi;
-    this.scalesCache = scales.map(x => Math.ceil(x));
+  createProgramInfo(handler,input,outputShape) {
+    const inputLayout = handler.getOrCreateTextureLayout(input.TextureID,input.shape);
     const outputLayout = handler.createTextureLayoutFromShape(outputShape);
-    const dim = outputShape.length;
-    const glsl = getGlsl(handler.session.backend.glContext.version);
-    return createUpsampleProgramInfo(glsl, this.mode, dim, inputLayout, outputLayout, scales);
+    const glsl = getGlsl(handler.glContext.version);
+    return createUpsampleProgramInfo(glsl, 4, inputLayout, outputLayout);
   }
-  createRunData(handler, programInfo, inputs) {
-    const inputTD = handler.getOrCreateTextureData(inputs[0], programInfo.inputLayouts[0]);
-    const outputTD = handler.createTextureDataFromLayout(programInfo.outputLayout, inputTD.tensor.type);
+  createRunData(handler,inputs) {
+    const inputTD = handler.getOrCreateTextureData(inputs, this.glProg.inputLayouts);
+    const outputTD = handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32",this);
     return {
       inputTextureDatas: [inputTD],
       outputTextureData: outputTD,
-      uniformData: {
-        scales: this.scalesCache,
-        mo: this.mappingOriginCache,
-        me: this.mappingExtrapolateCache,
-        mw: this.mappingWeightCache,
-        mc: this.mappingCoeffCache
-      }
+      uniformData: {scales: [1,1,this.stride,this.stride]}
     };
   }
 }
-function fillResizeNearestMapping2D(inputHeight, inputWidth, outputHeight, outputWidth, scalesHeight, scalesWidth, roiStartHeight, roiEndHeight, roiStartWidth, roiEndWidth, extrapolationEnabled, getOriginalCoordinate, getNearestPixel, mappingOrigin, mappingExtrapolation) {
-  for (let i = 0; i < outputHeight; i++) {
-    let dim = i;
-    const originalCoord = getOriginalCoordinate(dim, scalesHeight, outputHeight, inputHeight, roiStartHeight, roiEndHeight);
-    // extrapolate
-    mappingExtrapolation.push((extrapolationEnabled && (originalCoord < 0 || originalCoord > inputHeight - 1)) ? 1 : 0);
-    dim = Math.max(0, Math.min(inputHeight - 1, getNearestPixel(originalCoord, scalesHeight < 1)));
-    // origin
-    mappingOrigin.push(dim);
-  }
-  for (let i = 0; i < outputWidth; i++) {
-    let dim = i;
-    const originalCoord = getOriginalCoordinate(dim, scalesWidth, outputWidth, inputWidth, roiStartWidth, roiEndWidth);
-    // extrapolate
-    mappingExtrapolation.push((extrapolationEnabled && (originalCoord < 0 || originalCoord > inputWidth - 1)) ? 1 : 0);
-    dim = Math.max(0, Math.min(inputWidth - 1, getNearestPixel(originalCoord, scalesWidth < 1)));
-    // origin
-    mappingOrigin.push(dim);
-  }
-}
-function createUpsampleProgramInfo(glsl, mode, dim, inputLayout, outputLayout, scales) {
+function createUpsampleProgramInfo(glsl, dim, inputLayout, outputLayout) {
   const outputShape = outputLayout.shape;
   const inputShape = inputLayout.shape;
   const precalculatedPitches = shaderPrecalculatedPitches(dim, outputShape, inputShape);
@@ -77,7 +47,7 @@ function createUpsampleProgramInfo(glsl, mode, dim, inputLayout, outputLayout, s
     outputLayout,
     samplers: ['X'],
     shaderSource,
-    variables: [{ name: 'scales', type: 'int', arrayLength: scales.length }]
+    variables: [{ name: 'scales', type: 'int', arrayLength: 4 }]
   };
 }
 function shaderPrecalculatedPitches(dim, outputShape, inputShape) {

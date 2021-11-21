@@ -13,15 +13,17 @@ extern "C"
   void conv_f32(void *);
   void convT_f32(void *);
   void pool_f32(void *);
+  void matmul_f32(void *);
 
   void conv2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *,
-                      float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool);
+                      float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool, float *, float *, float *);
   void convTranspose2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *,
-                               float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool);
+                               float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool, float *, float *, float *);
   void im2col_f32(const float *, float *, const int32_t, const int32_t, const int32_t,
                   const int32_t, const int32_t, const int32_t, const int32_t,
                   const int32_t, const int32_t, const int32_t, const int32_t,
                   const int32_t, const int32_t);
+  void connected_imp(float *, int *, float *, int *, float *, int *, float *, int, float *, float *, float *);
   void matmul(float *, float *, float *, const int32_t, const int32_t, const int32_t);
   void convdw3x3s1(float *const &, const int &, const int &, const int &, float *const &,
                    float *&, const int &, const int &, const int &, float *const &);
@@ -29,7 +31,7 @@ extern "C"
                    float *&, const int &, const int &, const int &, float *const &);
   void pool2D_f32_imp(float *, int *, float *, int *, int, int *, int *, bool);
   float *activate(float *, const int, const int);
-  void addBias(float *, const float *, const int32_t, const int32_t);
+  void add_bias(float *, const float *, const int32_t, const int32_t, float *, float *, float *);
   void micro4x8(size_t, const float *, size_t, const float *, size_t, float *, size_t);
   void reorder_b_8(int, const float *, int, float *);
 }
@@ -44,7 +46,7 @@ struct buf_t
 // Core operator implementation
 void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
                     int *Y_shape, float *bias, int *dilations, int groups,
-                    int *pads, int *strides, int active)
+                    int *pads, int *strides, int active, float *scales, float *mean, float *variance)
 {
   const int input_num = X_shape[0];
   const int input_channels = X_shape[1];
@@ -77,14 +79,14 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
 
   for (int n = 0; n < input_num; ++n)
   {
-   /* if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3)
+    if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr) 
     {
       convdw3x3s1(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
       delete[] col_buffer_data;
       return;
     }
-    else if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3)
+    else if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s2(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
@@ -92,7 +94,7 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
       return;
     }
     else
-    {*/
+    {
       for (int group = 0; group < groups; ++group)
       {
         im2col_f32(X + X_offset * group, col_buffer_data, input_channels / groups, input_height,
@@ -101,17 +103,17 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
                    strides[1]);
         matmul(W + W_offset * group, col_buffer_data, Y + Y_offset * group, filter_num / groups, output_height * output_width, kernel_dim);
       }
-    //}
+    }
   }
   if (bias != nullptr)
-    addBias(Y, bias, filter_num, out_size);
+    add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
   Y = activate(Y, output_size, active);
   delete[] col_buffer_data;
 }
 
 void convTranspose2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape,
                              float *Y, int *Y_shape, float *bias, int *dilations,
-                             int groups, int *pads, int *strides, int active)
+                             int groups, int *pads, int *strides, int active, float *scales, float *mean, float *variance)
 {
 
   const int input_num = X_shape[0];
@@ -161,7 +163,7 @@ void convTranspose2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape,
     }
   }
   if (bias != nullptr)
-    addBias(Y, bias, filter_num, out_size);
+    add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
   Y = activate(Y, output_size, active);
   delete[] col_buffer_data;
 }
@@ -201,12 +203,20 @@ void im2col_f32(const float *data_im, float *data_col, const int channels, const
     }
   }
 }
-
-void addBias(float *Y, const float *bias, const int filter_num, const int out_size)
+void add_bias(float *Y, const float *bias, const int filter_num, const int out_size, float *scales, float *mean, float *variance)
 {
   for (int i = 0; i < filter_num; ++i)
     for (int j = 0; j < out_size; ++j)
-      Y[i * out_size + j] += bias[i];
+      if (scales == nullptr)
+        Y[i * out_size + j] += bias[i];
+      else
+        Y[i * out_size + i] = scales[i] * (Y[i * out_size + i] - mean[i]) / std::sqrt(variance[i] + 0.000001) + bias[i];
+}
+void connected_imp(float *X, int *X_shape, float *W, int *W_shape,
+                   float *Y, int *Y_shape, float *bias, int active, float *scales, float *mean, float *variance)
+{
+  matmul(X, W, Y, W_shape, X_shape, Y_shape);
+  add_bias(Y, bias, W_shape[1], Y_shape[2] * Y_shape[3], scales, mean, variance);
 }
 
 void pool2D_f32_imp(float *X, int *X_shape, float *Y,
