@@ -1,16 +1,4 @@
 class Forward {
-  static softmax(input, n, temp, output, index) {
-    let sum = 0;
-    let largest = -Number.MAX_VALUE;
-    for (let i = index; i < index + n; ++i)
-      if (input[i] > largest) largest = input[i];
-    for (let i = index; i < index + n; ++i) {
-      const e = Math.exp(input[i] / temp - largest / temp);
-      sum += e;
-      output[i] = e;
-    }
-    for (let i = index; i < index + n; ++i)output[i] /= sum;
-  }
   static im2col(data_im, data_col, channels, height,
     width, kernel_h, kernel_w, dilation_h, dilation_w, pad_t,
     pad_l, pad_b, pad_r, stride_h, stride_w) {
@@ -184,8 +172,7 @@ class Forward {
   static upsample_layer(layers) {
     const l = this
     const input = layers[l.index - 1].output
-    if (l.tpi = 'NEAREST') Forward.upsampleNearest(l, input)
-    else Forward.upsampleBilinear(l, input)
+    Forward.upsampleNearest(l, input)
   }
   static upsampleNearest(l, input, forward = true) {
     for (let b = 0; b < l.batch; ++b)
@@ -197,47 +184,25 @@ class Forward {
             else input[b * l.w * l.h * l.c + k * l.w * l.h + ~~(j / l.stride) * l.w + ~~(i / l.stride)] =
               l.scale * l.output[b * l.w * l.h * l.c * l.stride * l.stride + k * l.w * l.h * l.stride * l.stride + j * l.w * l.stride + i];
   }
-  static upsampleBilinear(l, input) {
-    for (let b = 0; n < l.b; ++b) {
-      for (let c = 0; c < l.c; ++c) {
-        for (let y = 0; y < l.out_h; ++y) {
-          const inY1 = Math.min(~~(y / l.scale), l.h - 1);
-          const inY2 = Math.min(inY1 + 1, l.h - 1);
-          const dy1 = y / (l.scale) - inY1, dy2 = y / (l.scale) - inY2;
-          for (let x = 0; x < l.out_w; ++x) {
-            const inX1 = Math.min(~~(x / l.scale), l.w - 1);
-            const inX2 = Math.min(inX1 + 1, l.w - 1);
-            const dx1 = x / (l.scale) - inX1, dx2 = x / (l.scale) - inX2
-            const x11 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY1 + inX1];
-            const x21 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY1 + inX2];
-            const x12 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY2 + inX1];
-            const x22 = input[b * l.h * l.w * l.c + l.h * l.w * c + l.w * inY2 + inX2];
-            l.output[b * l.out_w * l.out_h * l.c + l.out_w * l.out_h * c + l.out_w * y + x] =
-              dx2 * dy2 * x11 + dx1 * dy2 * x21 + dx2 * dy1 * x12 + dx1 * dy1 * x22;
-          }
-        }
-      }
-    }
-  }
 
   static softmax_layer(layers) {
     const l = this
     const input = layers[l.index - 1].output
-    for (let b = 0; b < l.batch; ++b)
-      for (let g = 0; g < l.groups; ++g)
-        Forward.softmax(input.subarray(b * l.w * l.c * l.h + g * input.length / l.groups), l.batch, l.temperature, l.output.subarray(b * l.out_c * l.out_w * l.out_h + g * l.output.length / l.groups), 1);
+    for (let b = 0; b < l.batch; ++b) {
+      for (let g = 0; g < l.groups; ++g) {
+        //Forward.softmax(input.subarray(b * l.w * l.c * l.h + g * input.length / l.groups), l.batch, l.temperature, l.output.subarray(b * l.out_c * l.out_w * l.out_h + g * l.output.length / l.groups), 1);
+        let sum = 0;
+        let largest = -Number.MAX_VALUE;
+        for (let i = index; i < index + n; ++i)if (input[i] > largest) largest = input[i];
+        for (let i = index; i < index + n; ++i) {
+          const e = Math.exp(input[i] / temp - largest / temp);
+          sum += e;
+          output[i] = e;
+        }
+        for (let i = index; i < index + n; ++i)output[i] /= sum;
+      }
+    }
   }
-  static shuffle_channels(layers) {
-    const l = this
-    const input = layers[l.index - 1].output
-    for (let b = 0; b < l.b; ++b)
-      for (let c = 0; c < l.out_c; ++c)
-        for (let h = 0; h < l.out_h; ++h)
-          for (let w = 0; w < l.out_w; ++w)
-            l.output[b * l.out_c * l.out_w * out_h + c * l.out_w * l.out_h + h * l.out_w + w] =
-              input[b * l.c * l.w * h + c * l.factor * l.w * h + ~~(h * l.w + w % (l.factor) * l.w * l.h) + ~~(w / l.factor)];
-  }
-
   static scale_channels_layer(layers) {
     for (let i = 0; i < this.output.length; ++i)this.output[i] = layers[this.index - 1].output[~~(i / (this.out_w * this.out_h))] * layers[this.indexs].output[i];
     this.output = Forward.activate(this.output, this.activation);

@@ -1,47 +1,24 @@
 class Backward {
   static convolutional_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1].output
-    const m = l.n / l.groups;
-    const n = l.size * l.size * l.c / l.groups;
-    const k = l.out_w * l.out_h;
+    const delta = layers[l.index + 1].delta
     const kernel_dim = l.size * l.size * l.c / l.groups;
     const out_wh = l.out_h * l.out_w;
 
     const col_buffer_data = new Float32Array(kernel_dim * l.out_h * l.out_w);
     const x_offset = l.c / l.groups * l.h * l.w;
-    const y_offset = l.out_w * l.out_h * l.out_c / l.batch / l.groups;
+    const y_offset = l.out_w * l.out_h * l.out_c / l.groups;
     const w_offset = l.filters * kernel_dim / l.groups;
-    const out_size = l.out_h * l.out_w;
 
     Backward.gradient(l.output, l.outputs * l.batch, l.activation, l.delta);
     Backward.bias(l.bias_updates, l.delta, l.batch, l.n, k);
     for (let i = 0; i < l.batch; ++i) {
       for (let j = 0; j < l.groups; ++j) {
-        Forward.im2col(
-          input.subarray((i * l.groups + j) * x_offset), // input im
-          l.c / l.groups,     // input channels
-          l.h, l.w,           // input size (h, w)
-          l.size, l.size,     // kernel size (h, w)
-          l.pad * l.dilation, l.pad * l.dilation,       // padding (h, w)
-          l.stride_y, l.stride_x, // stride (h, w)
-          l.dilation, l.dilation, // dilation (h, w)
-          col_buffer_data);       // output
-
-        Forward.matmul2d(l.weights.subarray(w_offset * (l.groups * b + group)), col_buffer_data, l.output.subarray(y_offset * (l.groups * b + group)), l.filters / l.groups, out_wh, kernel_dim);
-
+        Forward.im2col(input.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
+        Forward.matmul(l.weights.subarray(w_offset * group), col_buffer_data, l.output.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
         if (delta) {
-          Forward.matmul2d(l.weights.subarray(w_offset * (l.groups * b + group)), l.delta.subarray(), delta, l.filters / l.groups, out_wh, kernel_dim);
-
-          Forward.im2col(
-            input.workspace,        // input
-            l.c / l.groups,         // input channels (h, w)
-            l.h, l.w,               // input size (h, w)
-            l.size, l.size,         // kernel size (h, w)
-            l.pad * l.dilation, l.pad * l.dilation,           // padding (h, w)
-            l.stride_y, l.stride_x,     // stride (h, w)
-            l.dilation, l.dilation, // dilation (h, w)
-            delta.subarray(i * l.groups + j) * (l.c / l.groups) * l.h * l.w); // output (delta)
+          Forward.im2col(delta.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
+          Forward.matmul(l.weights.subarray(w_offset * group), col_buffer_data, l.delta.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
         }
       }
     }
@@ -77,13 +54,12 @@ class Backward {
   static route_layer(layers) {
     const l = this
     let offset = 0;
-    for (let i = 0; i < l.n; ++i) {
-      const index = l.input_layers[i];
-      const delta = layers[index].delta;
-      const input_size = l.input_sizes[i];
+    for (let i = 0; i < l.input_layers.length; ++i) {
+      const index = l.input_layers[i].index;                  // source layer index
+      const delta = layers[index].delta;  // source layer output ptr
+      const input_size = l.input_sizes[i];              // source layer size
       const part_input_size = input_size / l.groups;
-      for (let j = 0; j < l.batch; ++j)
-        Backward.axpy_cpu(part_input_size, 1, delta.subarray(offset + j * l.outputs), 1, delta.subarray(j * input_size + part_input_size * l.group_id), 1);
+      for (let j = 0; j < l.batch; ++j)l.delta.set(delta.subarray(j * input_size + part_input_size * l.group_id, j * input_size + part_input_size * l.group_id + part_input_size), offset + j * l.outputs);
       offset += part_input_size;
     }
   }
@@ -108,28 +84,6 @@ class Backward {
     axpy_cpu(l.outputs * l.batch, l.alpha, l.delta, 1, layers[l.index].delta, 1);
     shortcut_cpu(l.batch, l.out_w, l.out_h, l.out_c, l.delta, l.w, l.h, l.c, 1, l.beta, layers[l.index].delta);
 
-  }
-  static backward_channel_shuffle_layer(layers) {
-    const l = this
-    let channel = l.c;
-    let group_row = l.groups;
-    let batch_size = l.batch;
-    let spatial_size = l.w * l.h;
-    let feature_map_size = spatial_size * channel;
-    let group_column = (let)(channel / group_row);
-    for (let n = 0; n < batch_size; ++n) {
-      channel_shuffle_op(state.delta + n * feature_map_size, l.delta + n * feature_map_size,
-        group_row, group_column, spatial_size);
-    }
-  }
-  static channel_shuffle_op(output, input,  group_row,  group_colomn,  len) {
-    for (let i = 0; i < group_row; i++) {
-      for (let j = 0; j < group_colomn; j++) {
-        const p_i = input + (i * group_colomn + j) * len;
-        const p_o = output + (j * group_row + i) * len;
-        copy_cpu(len, p_i, 1, p_o, 1);
-      }
-    }
   }
 
   static avgpool_layer(layers) {
@@ -202,41 +156,8 @@ class Backward {
   }
   static softmax_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
+    const delta = layers[l.index + 1].delta
     Backward.axpy_cpu(l.inputs * l.batch, 1, l.delta, 1, delta, 1);
-  }
-  static forward_crop_layer(layers) {
-    let count = 0;
-    let flip = (l.flip && rand() % 2);
-    let dh = rand() % (l.h - l.out_h + 1);
-    let dw = rand() % (l.w - l.out_w + 1);
-    const scale = 2;
-    const trans = -1;
-    if (l.noadjust) {
-      scale = 1;
-      trans = 0;
-    }
-    if (!state.train) {
-      flip = 0;
-      dh = (l.h - l.out_h) / 2;
-      dw = (l.w - l.out_w) / 2;
-    }
-    for (let b = 0; b < l.batch; ++b) {
-      for (let c = 0; c < l.c; ++c) {
-        for (let i = 0; i < l.out_h; ++i) {
-          for (let j = 0; j < l.out_w; ++j) {
-            if (flip) {
-              col = l.w - dw - j - 1;
-            } else {
-              col = j + dw;
-            }
-            const row = i + dh;
-            const index = col + l.w * (row + l.h * (c + l.c * b));
-            l.output[count++] = state.input[index] * scale + trans;
-          }
-        }
-      }
-    }
   }
   static axpy_cpu(N, ALPHA, X, INCX, Y, INCY) {
     for (let i = 0; i < N; ++i) Y[i * INCY] += ALPHA * X[i * INCX];

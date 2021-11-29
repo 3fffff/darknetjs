@@ -1,7 +1,7 @@
 "use strict";
 
 class WebGLBatchNormalization {
-  static createProgramInfo(handler, outputShape, inputs) {
+  static createProgramInfo(handler, inputs, outputShape) {
     const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape));
     const rank = outputShape.length;
     const scale = inputLayouts[1];
@@ -25,7 +25,7 @@ class WebGLBatchNormalization {
     };
   }
   static createRunData(handler, inputs) {
-    const inputTDs = [handler.getOrCreateTextureData(inputs[0], this.glProg.inputLayouts[0])];
+    const inputTDs = [handler.getOrCreateTextureData(inputs, this.glProg.inputLayouts)];
     inputs.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
     console.log(inputTDs)
     const outputTD = handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32');

@@ -1,7 +1,7 @@
 <html>
 
 <body>
-  <input id="primary-file-upload" type="file" multiple>
+  <input id="primary-file-upload" type="file" accept=".cfg, .weights" multiple>
   <button id="start">GO</button>
   <button id="dispose">Dispose</button>
   <div id="file-content">
@@ -27,11 +27,11 @@
 <script src="webgl/program-manager.js"></script>
 <script src="webgl/webgl-context.js"></script>
 <script src="webgl/ops/activation.js"></script>
-<script src="webgl/ops/batch-normalization.js"></script>
 <script src="webgl/ops/sum.js"></script>
-<script src="webgl/ops/matmul.js"></script>
 <script src="webgl/ops/upsample.js"></script>
 <script src="webgl/ops/pool.js"></script>
+<script src="webgl/ops/conv.js"></script>
+<script src="webgl/ops/route.js"></script>
 <script src="ImageProcess.js"></script>
 <script src="forward.js"></script>
 <script src="model.js"></script>
@@ -133,8 +133,8 @@
     loadwasm()*/
 
   const handleUploadWeight = async event => {
-    const file = event.target.files[1];
-    const blob = event.target.files[0];
+    const file = event.target.files[0];
+    const blob = event.target.files[1];
     const fileContentDiv = document.querySelector('div#file-content');
     try {
       const fileContents = await readUploadedFileAsText(file);
@@ -142,7 +142,9 @@
       const weights = new DataView(blb);
       const model = new Model()
       const layers = model.parse_network_cfg(fileContents, weights)
-      backend = new Backend(layers,false,false)
+      backend = new Backend(layers, true, false)
+      //backend.initWasm()
+      backend.initGL()
       await imageLoader.getImageData('./dog.jpg');
       document.getElementById("file-content").appendChild(imageLoader.canvas)
     } catch (e) {

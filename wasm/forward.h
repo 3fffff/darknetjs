@@ -4,6 +4,7 @@
 #include <limits>
 #include <stdint.h>
 #include <math.h>
+#include <cmath>
 #include <stdlib.h>
 #include <mm_malloc.h>
 #include <wasm_simd128.h>
@@ -15,10 +16,10 @@ extern "C"
   void pool_f32(void *);
   void matmul_f32(void *);
 
-  void conv2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *,
-                      float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool, float *, float *, float *);
+  void conv2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *, float *, int32_t *, int32_t, int32_t *,
+   int32_t *, int32_t, float *, float *, float *);
   void convTranspose2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *,
-                               float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, bool, float *, float *, float *);
+                               float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, float *, float *, float *);
   void im2col_f32(const float *, float *, const int32_t, const int32_t, const int32_t,
                   const int32_t, const int32_t, const int32_t, const int32_t,
                   const int32_t, const int32_t, const int32_t, const int32_t,
@@ -79,14 +80,14 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
 
   for (int n = 0; n < input_num; ++n)
   {
-    if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr) 
+    /*if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s1(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
       delete[] col_buffer_data;
       return;
     }
-    else if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
+    else */if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s2(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
@@ -215,8 +216,9 @@ void add_bias(float *Y, const float *bias, const int filter_num, const int out_s
 void connected_imp(float *X, int *X_shape, float *W, int *W_shape,
                    float *Y, int *Y_shape, float *bias, int active, float *scales, float *mean, float *variance)
 {
-  matmul(X, W, Y, W_shape, X_shape, Y_shape);
+  matmul(X, W, Y, X_shape[1], W_shape[1], Y_shape[1]);
   add_bias(Y, bias, W_shape[1], Y_shape[2] * Y_shape[3], scales, mean, variance);
+  Y = activate(Y, Y_shape[2] * Y_shape[3], active);
 }
 
 void pool2D_f32_imp(float *X, int *X_shape, float *Y,

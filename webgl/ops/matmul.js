@@ -1,9 +1,9 @@
 "use strict";
 class WebGLMatMul {
-   static createProgramInfo(handler, l,inputs) {
+   static createProgramInfo(handler,inputs,outputShape) {
         let sharedDim = inputs[0].shape[inputs[0].length - 1];
         let line = `value += _A(a) * _B(b);`;
-        const rank = oShape.length;
+        const rank = outputShape.length;
         const shaderSource = `
       float process(int indices[${rank}]) {
           int a[${rank}];
@@ -26,7 +26,7 @@ class WebGLMatMul {
         console.log(inputLayouts)
         return {
             inputLayouts,
-            outputLayout: handler.createTextureLayoutFromShape(oShape),
+            outputLayout: handler.createTextureLayoutFromShape(outputShape),
             samplers: ['A', 'B'],
             shaderSource,
         };

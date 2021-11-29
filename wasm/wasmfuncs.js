@@ -9,7 +9,7 @@ async function WasmConv(layers) {
       [[l.filters, l.c, l.size, l.size], 'int32ptr'], [l.output, 'float32ptr', 'out'], [[l.batch, l.out_c, l.out_h, l.out_w], 'int32ptr'],
       [l.biases.length > 0 ? l.biases : null, 'float32ptr'], [[l.dilation, l.dilation], 'int32ptr'], [l.groups, 'int32'],
       [[l.pad, l.pad, l.pad, l.pad], 'int32ptr'], [[l.stride_x, l.stride_y], 'int32ptr'], [active[l.activation], 'int32'],
-      [l.scales ? sArray[i] : null, 'float32ptr'],[l.mean ? mArray[i] : null, 'float32ptr'],[l.variance ? vArray[i] : null, 'float32ptr']);
+      [l.scales, 'float32ptr'],[l.mean, 'float32ptr'],[l.variance, 'float32ptr']);
   else {
     const workerTasks = new Array(numThreads - 1);
     // data pre-processing

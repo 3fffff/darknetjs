@@ -64,7 +64,7 @@ function initWorkers(numWorkers = 4, initTimeout = 5000) {
     for (let workerId = 0; workerId < WORKER_NUMBER; workerId++) {
       const workerInitTask = new Promise((resolveWorkerInit, rejectWorkerInit) => {
         // tslint:disable-next-line
-        const worker = new Worker("wasm-worker.js");
+        const worker = new Worker("wasm/wasm-worker.js");
         workers[workerId] = worker;
         completeCallbacks[workerId] = [];
         worker.onerror = e => {

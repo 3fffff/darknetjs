@@ -119,10 +119,9 @@ class WebGLSoftmax {
     };
   }
   createProgramInfos(inferenceHandler, inputs) {
-    const inputShape = inputs[0].dims.slice();
-    const axis = ShapeUtil.normalizeAxis(this.axis, inputShape.length);
-    const N = ShapeUtil.sizeToDimension(inputShape, axis);
-    const D = ShapeUtil.sizeFromDimension(inputShape, axis);
+    const axis = ShapeUtil.normalizeAxis(this.axis, input.shape.length);
+    const N = ShapeUtil.sizeToDimension(input.shape, axis);
+    const D = ShapeUtil.sizeFromDimension(input.shape, axis);
     const computeMaxProgramInfo = this.createComputeMaxProgramInfo(inferenceHandler, inputs[0], N, D, [N]);
     const computeScaleProgramInfo = this.createComputScaleProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, [N]);
     const softMaxProgramInfo = this.createSoftMaxProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, computeScaleProgramInfo.outputLayout);

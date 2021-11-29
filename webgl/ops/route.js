@@ -1,65 +1,49 @@
 "use strict";
-class WebGLConcat {
-  createProgramInfo(handler, inputs) {
-    const inputShape = inputs[0].dims.slice();
-    if (this.axis >= inputShape.length || this.axis < (-1 * inputShape.length)) throw new Error(`axis specified for concat doesn't match input dimensionality`);
-    if (this.axis < 0) this.axis = inputShape.length + this.axis;
-    // ensure all of the non-concatenated axes match each other
-    // calculate the shape of the output tensor while we do that
-    const outputShape = inputShape.slice(0);
-    for (let i = 1; i < inputs.length; i++) {
-      const dataNShape = inputs[i].dims.slice();
-      for (let axisIndex = 0; axisIndex < inputShape.length; axisIndex++) {
-        // add to the placeholder for computing output shape
-        if (axisIndex === this.axis) outputShape[this.axis] += dataNShape[axisIndex];
-        // ensure all non-cancatenated axes match each other
-        else if (inputShape[axisIndex] !== dataNShape[axisIndex]) throw new Error(`non concat dimensions must match`);
-      }
-    }
+class WebGLRoute {
+  static createProgramInfo(handler, inputs, outputShape,groups) {
     const rank = outputShape.length;
-    let getTextureIndexWhereDataResidesMethod = ``;
     // in most cases linear search is sufficient, as in most scenarios, only 2 tensors are concatenated
-    getTextureIndexWhereDataResidesMethod = this.getTextureIndexWhereDataResidesLinearSearch(inputs.length);
-    const fetchDataFromCorrectTextureMethod = this.fetchDataFromCorrectTextureMethod(inputs.length, rank);
-    const getValueFromArrayIndexMethod = this.getValueFromArrayIndexMethod(inputs.length);
+    const getTextureIndexWhereDataResidesMethod = WebGLRoute.getTextureIndexWhereDataResidesLinearSearch(inputs.length);
+    const fetchDataFromCorrectTextureMethod = WebGLRoute.fetchDataFromCorrectTextureMethod(inputs.length, rank);
+    const getValueFromArrayIndexMethod = WebGLRoute.getValueFromArrayIndexMethod(inputs.length);
     const samplers = inputs.map((v, i) => `X${i}`);
     const shaderSource = `
       ${fetchDataFromCorrectTextureMethod}
       ${getValueFromArrayIndexMethod}
       ${getTextureIndexWhereDataResidesMethod}
       float process(int indices[${rank}]) {
-        int textureIndex = getTextureWhereDataResides (indices[${this.axis}]);
+        int textureIndex = getTextureWhereDataResides (indices[${groups}]);
 
         if(textureIndex != 0) {
-          indices[${this.axis}] = indices[${this.axis}] - int(getValueFromArrayIndex(sizeInConcatAxis, textureIndex-int(1)));
+          indices[${groups}] = indices[${groups}] - int(getValueFromArrayIndex(sizeInConcatAxis, textureIndex-int(${groups})));
         }
 
         return fetchDataFromCorrectTexture(textureIndex, indices);
       }`;
     return {
-      inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t)),
+      inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t, t.shape)),
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers,
       variables: [{ name: 'sizeInConcatAxis', type: 'int', arrayLength: inputs.length }],
       shaderSource,
     };
   }
-  createRunData(handler, programInfo, inputs) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, programInfo.inputLayouts[i]));
-    const sizeInConcatAxis = new Array(programInfo.inputLayouts.length);
+  static createRunData(handler, inputs) {
+    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, this.glProg.inputLayouts[i]));
+    const sizeInConcatAxis = new Array(this.glProg.inputLayouts.length);
     let previousSum = 0;
-    for (let i = 0; i < programInfo.inputLayouts.length; ++i) {
-      previousSum += programInfo.inputLayouts[i].shape[this.axis];
+    for (let i = 0; i < this.glProg.inputLayouts.length; ++i) {
+      previousSum += this.glProg.inputLayouts[i].shape[1];
       sizeInConcatAxis[i] = previousSum;
     }
     const uniformData = { 'sizeInConcatAxis': sizeInConcatAxis };
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(programInfo.outputLayout, inputTDs[0].tensor.type),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', this),
       uniformData
     };
   }
-  getTextureIndexWhereDataResidesLinearSearch(numberOfTensors) {
+  static getTextureIndexWhereDataResidesLinearSearch(numberOfTensors) {
     return `int getTextureWhereDataResides(int index) {
       for(int i=0; i<${numberOfTensors}; i++) {
           if(index < int(sizeInConcatAxis[i])){
@@ -68,7 +52,7 @@ class WebGLConcat {
         }
       }`;
   }
-  fetchDataFromCorrectTextureMethod(numberOfTensors, tensorRank) {
+  static fetchDataFromCorrectTextureMethod(numberOfTensors, tensorRank) {
     const codeLines = [`float fetchDataFromCorrectTexture(int textureIndex, int indices[${tensorRank}]) {`];
     for (let i = 0; i < numberOfTensors; ++i) {
       if (i === 0) {
@@ -88,7 +72,7 @@ class WebGLConcat {
       `}`);
     return codeLines.join('\n');
   }
-  getValueFromArrayIndexMethod(arrayRank) {
+  static getValueFromArrayIndexMethod(arrayRank) {
     const codeLines = [`int getValueFromArrayIndex(int arr[${arrayRank}], int index) {`];
     for (let i = 0; i < arrayRank; ++i) {
       if (i === 0) {

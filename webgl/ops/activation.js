@@ -1,12 +1,12 @@
 "use strict";
 
 class WebGLActivation {
-  static createProgramInfo(handler, outputShape,input) {
+  static createProgramInfo(handler, input, outputShape) {
     const glsl = getGlsl(handler.glContext.version);
-    const shaderSource =  getGlActivation(l.activation,glsl) 
+    const shaderSource = getGlActivation(l.activation, glsl)
     return {
       hasMain: true,
-      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID,input.shape)],
+      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, input.shape)],
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers: ['A'],
       shaderSource,
@@ -16,12 +16,12 @@ class WebGLActivation {
     const inputTDs = [handler.getOrCreateTextureData(this, this.glProg.inputLayouts[0])];
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout,'float32',this),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', this),
       uniformData: {}
     }
   }
 }
-function getGlActivation(a,glsl) {
+function getGlActivation(a, glsl) {
   switch (a) {
     case "LOGISTIC":
       return glslSigmoid(glsl)
@@ -33,12 +33,12 @@ function getGlActivation(a,glsl) {
       return glslMish(glsl)
     case "SWISH":
       return glslSwish(glsl)
-    default:  throw Error("not recognized activation");
+    default: throw Error("not recognized activation");
   }
 }
-function glslElu(glsl){
+function glslElu(glsl) {
   const alpha = Math.exp(0.1)
-  return  `void main() {
+  return `void main() {
     float v = ${glsl.texture2D}(A, TexCoords).r;
     ${glsl.output} = vec4(v >= 0.0 ? v: (exp(v) - 1.0) * ${alpha}); /* float number format */
   }`
@@ -69,7 +69,7 @@ function glslSigmoid(glsl) {
   `;
 }
 function glslSwish(glsl) {
-  return`
+  return `
   void main() {
     float v = ${glsl.texture2D}(A, TexCoords).r;
     ${glsl.output} = vec4(v*(1.0 / (1.0 + exp(-v)));

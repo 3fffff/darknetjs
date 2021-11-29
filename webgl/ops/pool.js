@@ -1,24 +1,21 @@
 "use strict";
 class WebGLPool {
-  static createProgramInfo(handler, inputs,outputShape) {
+  static createProgramInfo(handler, inputs, outputShape) {
     return createMaxPoolProgramInfo(handler, inputs, outputShape);
   }
   static createRunData(handler, input) {
-    const inputTDs = [handler.getOrCreateTextureData(input)];
+    const inputTDs = [handler.getOrCreateTextureData(input, this.glProg.inputLayouts[0])];
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32",this),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32", this),
       uniformData: {}
     };
   }
 }
 function createMaxPoolProgramInfo(handler, inputs, outputShape) {
-  const inputShape = inputs.shape;
-  const op1 = `
-              value = max(_X(x), value);
-      `;
-  const inputLayout = handler.createTextureLayoutFromShape(inputShape);
-  const poolingCode = GeneratePoolingCode(inputLayout, kernelShape, pads, strides, op1, op2, '-1e5');
+  const op1 = `value = max(_X(x), value);`;
+  const inputLayout = handler.createTextureLayoutFromShape(inputs.shape);
+  const poolingCode = GeneratePoolingCode(inputLayout, [inputs.size, inputs.size], [inputs.pad, inputs.pad, inputs.pad, inputs.pad], [inputs.stride_x, inputs.stride_y], op1, '', '-1e5');
   const shaderSource = `${poolingCode}`;
   return {
     inputLayouts: [inputLayout],
@@ -28,11 +25,11 @@ function createMaxPoolProgramInfo(handler, inputs, outputShape) {
   };
 }
 function createAveragePoolProgramInfo(handler, inputs, outputShape) {
-  const kernelSize = getSizeFromDimensionRange(kernelShape, 0, kernelShape.length);
+  const kernelSize = getSizeFromDimensionRange([inputs.size, inputs.size], 0, 2);
   const op1 = `value += _X(x);`;
   const op2 = `value /= float(${kernelSize} - pad);`;
   const inputLayout = handler.getOrCreateTextureLayout(inputs[0]);
-  const poolingCode = GeneratePoolingCode(inputLayout, kernelShape, pads, strides, op1, op2, '0.0');
+  const poolingCode = GeneratePoolingCode(inputLayout, [inputs.size, inputs.size], [inputs.pad, inputs.pad, inputs.pad, inputs.pad], [inputs.strides_x, inputs.strides_y], op1, op2, '0.0');
   const shaderSource = `
       ${poolingCode}
     `;
@@ -72,14 +69,13 @@ function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) 
                   ${op1}
                 }`;
   }
-  if (kernelShape.length === 2) {
-    const kh = kernelShape[kernelShape.length - 2];
-    const sh = strides[strides.length - 2];
-    const phStart = pads[pads.length / 2 - 2];
-    const phEnd = pads[pads.length - 2];
-    const dimH = inputDims[rank - 2];
-    if (phStart + phEnd !== 0) {
-      codeH = `
+  const kh = kernelShape[kernelShape.length - 2];
+  const sh = strides[strides.length - 2];
+  const phStart = pads[pads.length / 2 - 2];
+  const phEnd = pads[pads.length - 2];
+  const dimH = inputDims[rank - 2];
+  if (phStart + phEnd !== 0) {
+    codeH = `
               for (int j = 0; j < ${kh}; j++) {
                 x[${rank} - 2] = indices[${rank} - 2] * ${sh} - ${phStart} + j;
                 if (x[${rank} - 2] < 0 || x[${rank} - 2] >= ${dimH}) {
@@ -87,17 +83,16 @@ function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) 
                   continue;
                 }
             `;
-    }
-    else {
-      codeH = `
+  }
+  else {
+    codeH = `
                 for (int j = 0; j < ${kh}; j++) {
                   x[${rank} - 2] = indices[${rank} - 2] * ${sh} - ${phStart} + j;
                 `;
-    }
-    codeHEnd = `
+  }
+  codeHEnd = `
               }
             `;
-  }
   const poolingCode = `
             float process(int indices[${rank}]) {
               int x[${rank}];

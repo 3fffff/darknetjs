@@ -1,7 +1,7 @@
 class WebGLSum {
   static createProgramInfo(handler,inputs,outputShape) {
     const glsl = getGlsl(handler.glContext.version);
-    const sumLine = inputs.map((v, i) => `${glsl.texture2D}(X${i},TexCoords)`).join(getSamOrShortcut(l.type));
+    const sumLine = inputs.map((v, i) => `${glsl.texture2D}(X${i},TexCoords)`).join(getSamOrShortcut(inputs.type));
     const samplers = inputs.map((v, i) => `X${i}`);
     return {
       inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID,t.shape)),

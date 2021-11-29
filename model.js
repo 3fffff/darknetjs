@@ -1,56 +1,4 @@
 class Model {
-  constructor() {
-    ////////////////////////////////////////////simple testing
-    /*this.webgl = new WebGL("webgl2") 
-    const l0 = { index: 0, TextureID: "t0", b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
-    const l1 = { index: 1, TextureID: "t1", b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
-    const l2 = { index: 2, type: "SHORTCUT", activation: "RELU",glInputs:[{  TextureID: "t"+(l.index-1),shape:[l.b, l.c, l.h, l.w]}, { TextureID: "t"+l.indexs,shape:[l.b, l.c, l.h, l.w] }], TextureID:"t2",b: 1, c: 16, h: 304, w: 304, n: 16, indexs: 0, out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
-    const l3 = { index: 3, type: "SHORTCUT", activation: "RELU", TextureID:"t3", glInputs:[{TextureID: "t2",shape:[l.b, l.c, l.h, l.w]}], b: 1, c: 16, h: 304, w: 304, n: 16, scale: new Float32Array(16), mean: new Float32Array(16), variance: new Float32Array(16), out_c: 16, out_h: 304, out_w: 304, output: Array(16 * 304 * 304) }
-    const BN = { index:2, type: "BATCHNORM",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
-    const K = { index:2, type: "MATMUL",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
-    const MAXPOOL = { index:2, type: "MAXPOOL",TextureID:"t2",b: 1,glInputs:[{ index: l.index, TextureID: "t"+(l.index-1),shape:[1000,1]}, { index: l.index, TextureID: "t"+l.index+"w",shape:[1,1000] }], weights:new Float32Array(1000),c: 1000, h: 1, w: 1, out_c: 1000000, out_h: 1, out_w: 1, output: new Float32Array(1 * 1 * 1000000) }
-    K.glProg = WebGLMatMul.createProgramInfo(this.webgl, K)
-    K.glData = WebGLMatMul.createRunData
-    const inputs = [{ index: 2, TextureID: "t1",shape:[1000,1],output:K.weights}, { index: 2, TextureID: "t2w",shape:[1,1000],output:new Float32Array(1000) }]
-    l3.glData = WebGLActivation.createRunData
-    K.artifact = this.webgl.programManager.build(K.glProg);
-    for (let i = 0; i < l0.output.length; i++)inputs[0].output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
-    for (let i = 0; i < l1.output.length; i++)inputs[1].output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
-    K.runData = K.glData(this.webgl, inputs);
-    console.log(K)
-    this.webgl.programManager.run(K.artifact, K.runData);
-    console.log(K.runData.outputTextureData.gldata())
-    const output = new Float32Array(1000000)
-    Forward.matmul(inputs[0].output,inputs[1].output, output,1000, 1000, 1);
-    console.log(output)*/
-    /* const lr = [l2, l3]
-     for (let i = 0; i < l0.output.length; i++)l0.output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
-     for (let i = 0; i < l1.output.length; i++)l1.output[i] = Math.random() > 0.5 ? -Math.random() : Math.random()
-     const inputs = [{ index: l2.index, TextureID:"t2",TextureID: "t1", b: l1.b, c: l1.c, h: l1.h, w: l1.w, output: l1.output }, { index: l2.index, TextureID: "t0", b: l0.b, c: l0.c, h: l0.h, w: l0.w, output: l0.output }]
-     l2.glProg = WebGLSum.createProgramInfo(this.webgl, l2)
-     l2.glData = WebGLSum.createRunData
-     console.log(l2.glProg)
-     l2.artifact = this.webgl.programManager.build(l2.glProg);
-     l2.runData = l2.glData(this.webgl, inputs);
-     l3.glProg = WebGLActivation.createProgramInfo(this.webgl, l3)
-     l3.glData = WebGLActivation.createRunData
-     console.log(l3.glProg)
-     l3.artifact = this.webgl.programManager.build(l3.glProg);
-     this.webgl.programManager.setArtifact(lr[0].TextureID, lr[0].artifact);
-     this.webgl.programManager.setArtifact(lr[1].TextureID, lr[1].artifact);
-     lr[1].runData = lr[1].glData(this.webgl, lr[0].runData.outputTextureData.gldata());
-     console.log(inputs[0].output)
-     console.log(inputs[1].output)
-     //  for (let i = 0; i < lr.length; i++) {
-     console.time()
-     this.webgl.programManager.run(lr[0].artifact, lr[0].runData);
-     console.log(lr[0].runData.outputTextureData.gldata())
-     this.webgl.programManager.run(lr[1].artifact, lr[1].runData);
-     console.log(lr[1].runData.outputTextureData.gldata())
-     console.timeEnd()*/
-    // }
-    ////////////////////////////////////////////////
-  }
   option_find_int(options, name, def) {
     const res = options[name]
     if (res) return Math.floor(parseInt(res))
@@ -194,9 +142,7 @@ class Model {
     l.size = size;
     l.stride_x = stride_x;
     l.stride_y = stride_y
-    const output_size = l.out_h * l.out_w * l.out_c * l.batch;
-    l.indexes = new Int32Array(output_size);
-    l.output = new Float32Array(output_size);
+    l.output = new Float32Array(l.out_h * l.out_w * l.out_c * l.batch);
     l.forward = Forward.pool_layer
     this.options_from_layer(options, l)
     return l;
@@ -211,8 +157,7 @@ class Model {
     l.out_c = param.channels;
     l.outputs = l.out_h * l.out_w * l.out_c;
     l.inputs = l.h * l.w * l.c;
-    const output_size = l.out_h * l.out_w * l.out_c * l.batch;
-    l.output = new Float32Array(output_size);
+    l.output = new Float32Array(l.out_h * l.out_w * l.out_c * l.batch);
     this.options_from_layer(options, l)
     l.forward = Forward.pool_layer
     return l;
@@ -502,24 +447,6 @@ class Model {
     this.options_from_layer(options, l)
     return l;
   }
-  parse_shuffle_channel(options, param) {
-    const l = {};
-    l.type = "SHUFFLE_CHANNEL";
-    l.batch = 1;
-    l.w = parseInt(param.width);
-    l.h = parseInt(param.height);
-    l.c = parseInt(param.channels);
-    l.out_w = l.w;
-    l.out_h = l.h;
-    l.out_c = l.c;
-    l.groups = groups;
-    l.outputs = l.out_w * l.out_h * l.out_c;
-    l.inputs = l.w * l.h * l.c;
-    l.output = new Float32Array(l.outputs * l.batch);
-    l.forward = Forward.shuffle_channels
-    this.options_from_layer(options, l)
-    return l;
-  }
   read_cfg(cfg) {
     const lines = cfg.split("\n");
     const sections = [];
@@ -613,7 +540,6 @@ class Model {
       else if (sections[i].type.toUpperCase() == 'SHORTCUT') l = this.parse_shortcut(sections[i].options, layers);
       else if (sections[i].type.toUpperCase() == 'DROPOUT') l = this.parse_dropout(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'UPSAMPLE') l = this.parse_upsample(sections[i].options, sections[i - 1].options);
-      else if (sections[i].type.toUpperCase() == 'SHUFFLE_CHANNEL') l = this.parse_shuffle_channel(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'SCALE_CHANNELS') l = this.parse_scale_channels(sections[i].options, layers);
       else if (sections[i].type.toUpperCase() == 'SAM') l = this.parse_sam(sections[i].options, layers);
       else throw new Error("Type not recognized: " + sections[i].type);
