@@ -158,7 +158,7 @@
       console.log(loadWeight)
       console.time()
       // WasmBinding.getInstance().dispose()
-      await backend.start(imageLoader.pixels)
+      await backend.run(imageLoader.pixels)
       console.timeEnd()
       const img = new ImageProcess()
       const dets = img.get_network_boxes(backend.layers, 1, 1, 0.2, 0, 0);

@@ -3,7 +3,8 @@ class WebGLConv {
   static createProgramInfos(handler, inputs, outputShape) {
     const im2colProgramInfo = createIm2ColProgramInfo(handler, inputs, outputShape);
     const dotProductProgramInfo = createDotProductProgramInfo(handler, im2colProgramInfo.outputLayout, inputs, outputShape);
-    return [im2colProgramInfo, dotProductProgramInfo];
+    const activateProgramInfo = WebGLActivation.createProgramInfo(handler, dotProductProgramInfo.outputLayout, inputs[0], outputShape)
+    return [im2colProgramInfo, dotProductProgramInfo, activateProgramInfo];
   }
   static createRunDatas(handler, inputs) {
     const b = inputs.length >= 3 ? inputs[2] : undefined;
@@ -53,12 +54,13 @@ class WebGLConv {
         }
       }
     };
-    return [runtDataIm2Col, runDataDotProduct];
+    const runDataActivation = this.activation == "LINEAR" ? null : WebGLActivation.createRunData(handler, this.glProg[2], this)
+    return [runtDataIm2Col, runDataDotProduct, runDataActivation];
   }
   static prepKernelForDotProduct(shape, group, channels, kernel) {
     if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
-    const numFeatureMaps = shape[0];
-    const oldRowSize = shape[1] * shape[2] * shape[3];
+    const numFeatureMaps = shape[1];
+    const oldRowSize = shape[0] * shape[2] * shape[3];
     const newRowSize = Math.ceil(oldRowSize * group / channels) * channels;
     const newSize = numFeatureMaps * newRowSize;
     const buffer = new Float32Array(newSize);
@@ -144,7 +146,7 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
 function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape) {
   const xshape = inputs[0].shape
   const kshape = inputs[1].shape
-  const adjustedKernelShape = [kshape[0], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / xshape.length)];
+  const adjustedKernelShape = [kshape[1], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / xshape.length)];
   const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length], { breakAxis: 1 });
   let bLayout;
   const rank = outputShape.length;

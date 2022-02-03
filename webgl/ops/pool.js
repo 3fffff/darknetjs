@@ -3,11 +3,11 @@ class WebGLPool {
   static createProgramInfo(handler, inputs, outputShape) {
     return createMaxPoolProgramInfo(handler, inputs, outputShape);
   }
-  static createRunData(handler, input) {
-    const inputTDs = [handler.getOrCreateTextureData(input, this.glProg.inputLayouts[0])];
+  static createRunData(handler, input,glProg,layer) {
+    const inputTDs = [handler.getOrCreateTextureData(input, glProg.inputLayouts[0])];
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32", this),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", layer),
       uniformData: {}
     };
   }

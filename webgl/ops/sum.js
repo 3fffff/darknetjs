@@ -15,12 +15,12 @@ class WebGLSum {
       hasMain: true
     };
   }
-  static createRunData(handler,inputs) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t.TextureID, this.glProg.inputLayouts[i]));
+  static createRunData(handler,inputs,glProg,layer) {
+    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t.TextureID, glProg.inputLayouts[i]));
     console.log(inputTDs)
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32',this),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32',layer),
       uniformData: {}
     };
   }

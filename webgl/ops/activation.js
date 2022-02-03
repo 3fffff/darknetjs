@@ -1,22 +1,23 @@
 "use strict";
 
 class WebGLActivation {
-  static createProgramInfo(handler, input, outputShape) {
+  static createProgramInfo(handler,im2colLayout, input, outputShape) {
     const glsl = getGlsl(handler.glContext.version);
-    const shaderSource = getGlActivation(l.activation, glsl)
+    const shaderSource = getGlActivation(input.activation, glsl)
+    if(shaderSource == null) return
     return {
       hasMain: true,
-      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, input.shape)],
+      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, im2colLayout.shape)],
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers: ['A'],
       shaderSource,
     };
   }
-  static createRunData(handler) {
-    const inputTDs = [handler.getOrCreateTextureData(this, this.glProg.inputLayouts[0])];
+  static createRunData(handler,glProg,layer) {
+    const inputTDs = [handler.getOrCreateTextureData(layer, glProg.inputLayouts[0])];
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', this),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', layer),
       uniformData: {}
     }
   }
@@ -33,7 +34,7 @@ function getGlActivation(a, glsl) {
       return glslMish(glsl)
     case "SWISH":
       return glslSwish(glsl)
-    default: throw Error("not recognized activation");
+    default: return null;
   }
 }
 function glslElu(glsl) {
