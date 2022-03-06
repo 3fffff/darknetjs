@@ -6,23 +6,23 @@ class WebGLConv {
     const activateProgramInfo = WebGLActivation.createProgramInfo(handler, dotProductProgramInfo.outputLayout, inputs[0], outputShape)
     return [im2colProgramInfo, dotProductProgramInfo, activateProgramInfo];
   }
-  static createRunDatas(handler, inputs) {
-    const b = inputs.length >= 3 ? inputs[2] : undefined;
-    let kTD = handler.getTextureData(inputs[1].TextureID);
+  static createRunDatas(handler) {
+    const b = this.textures.length >= 3 ? this.textures[2] : undefined;
+    let kTD = handler.getTextureData(this.textures[1].TextureID);
     if (!kTD) {
-      console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating rew.');
-      const newKernelData = WebGLConv.prepKernelForDotProduct(inputs[1].shape, inputs[1].groups, 4, inputs[1].weights);
+      console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
+      const newKernelData = WebGLConv.prepKernelForDotProduct(this.textures[1].shape, this.textures[1].groups, 4, this.textures[1].weights);
       // hack: should use graph transformer to rewrite initializer K
-      kTD = handler.createTextureDataFromLayoutBindTensor(this.glProg[1].inputLayouts[1], 'float32', newKernelData, inputs[1]);
+      kTD = handler.createTextureDataFromLayoutBindTensor(this.glProg[1].inputLayouts[1], 'float32', newKernelData, this.textures[1]);
     }
     const runtDataIm2Col = {
-      inputTextureDatas: [handler.getOrCreateTextureData(inputs[0], null, inputs[0].shape)],
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg[0].outputLayout, 'float32', this),
+      inputTextureDatas: [handler.getOrCreateTextureData(this.textures[0], null, this.textures[0].shape)],
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg[0].outputLayout, 'float32', "im2col" + this.index),
       uniformData: {}
     };
     const inputTDs = [runtDataIm2Col.outputTextureData, kTD];
     if (b) inputTDs.push(handler.getOrCreateTextureData(b, null, b.shape));
-    const outputTD = handler.createTextureDataFromLayout(this.glProg[1].outputLayout, 'float32', this);
+    const outputTD = handler.createTextureDataFromLayout(this.glProg[1].outputLayout, 'float32', this.activation == "LINEAR" ? "t" + this.index : "dotprod" + this.index);
     const runDataDotProduct = {
       inputTextureDatas: inputTDs,
       outputTextureData: outputTD,
@@ -34,7 +34,7 @@ class WebGLConv {
         const sharedDimOffsetLocation = artifact.uniformLocations.find(l => l.name === 'sharedDimOffset').location;
         let blend = false;
         for (let k = 0; k < sharedDim; k += sharedDimReadSize) {
-          console.log('MatMul2D', `k = ${k}, sharedDim: ${sharedDim}, readSize = ${sharedDimReadSize}`);
+          //console.log('MatMul2D', `k = ${k}, sharedDim: ${sharedDim}, readSize = ${sharedDimReadSize}`);
           if (k === sharedDimReadSize) {
             blend = true;
             gl.enable(gl.BLEND);
@@ -54,13 +54,17 @@ class WebGLConv {
         }
       }
     };
-    const runDataActivation = this.activation == "LINEAR" ? null : WebGLActivation.createRunData(handler, this.glProg[2], this)
+    const runDataActivation = this.activation == "LINEAR" ? null : {
+      inputTextureDatas: [runDataDotProduct.outputTextureData],
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg[2].outputLayout, 'float32', "t" + this.index),
+      uniformData: {}
+    }
     return [runtDataIm2Col, runDataDotProduct, runDataActivation];
   }
   static prepKernelForDotProduct(shape, group, channels, kernel) {
     if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
-    const numFeatureMaps = shape[1];
-    const oldRowSize = shape[0] * shape[2] * shape[3];
+    const numFeatureMaps = shape[0];
+    const oldRowSize = shape[1] * shape[2] * shape[3];
     const newRowSize = Math.ceil(oldRowSize * group / channels) * channels;
     const newSize = numFeatureMaps * newRowSize;
     const buffer = new Float32Array(newSize);
@@ -78,9 +82,8 @@ class WebGLConv {
     ];
   }
   static calcSharedDimReadSize(preferredBatchSize, sharedDim) {
-    if (preferredBatchSize <= 0 || sharedDim < preferredBatchSize || sharedDim % preferredBatchSize !== 0) {
+    if (preferredBatchSize <= 0 || sharedDim < preferredBatchSize || sharedDim % preferredBatchSize !== 0)
       return sharedDim;
-    }
     return preferredBatchSize;
   }
 }
@@ -146,7 +149,7 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
 function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape) {
   const xshape = inputs[0].shape
   const kshape = inputs[1].shape
-  const adjustedKernelShape = [kshape[1], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / xshape.length)];
+  const adjustedKernelShape = [kshape[0], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / xshape.length)];
   const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length], { breakAxis: 1 });
   let bLayout;
   const rank = outputShape.length;

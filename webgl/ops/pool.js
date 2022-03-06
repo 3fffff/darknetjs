@@ -3,19 +3,19 @@ class WebGLPool {
   static createProgramInfo(handler, inputs, outputShape) {
     return createMaxPoolProgramInfo(handler, inputs, outputShape);
   }
-  static createRunData(handler, input,glProg,layer) {
-    const inputTDs = [handler.getOrCreateTextureData(input, glProg.inputLayouts[0])];
-    return {
+  static createRunData(handler) {
+    const inputTDs = [handler.getOrCreateTextureData(this.textures[0], this.glProg.inputLayouts[0])];
+    return [{
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", layer),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32", "t" + this.index),
       uniformData: {}
-    };
+    }];
   }
 }
-function createMaxPoolProgramInfo(handler, inputs, outputShape) {
+function createMaxPoolProgramInfo(handler, input, outputShape) {
   const op1 = `value = max(_X(x), value);`;
-  const inputLayout = handler.createTextureLayoutFromShape(inputs.shape);
-  const poolingCode = GeneratePoolingCode(inputLayout, [inputs.size, inputs.size], [inputs.pad, inputs.pad, inputs.pad, inputs.pad], [inputs.stride_x, inputs.stride_y], op1, '', '-1e5');
+  const inputLayout = handler.createTextureLayoutFromShape(input.shape);
+  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.stride_x, input.stride_y], op1, '', '-1e5');
   const shaderSource = `${poolingCode}`;
   return {
     inputLayouts: [inputLayout],
@@ -24,12 +24,12 @@ function createMaxPoolProgramInfo(handler, inputs, outputShape) {
     shaderSource,
   };
 }
-function createAveragePoolProgramInfo(handler, inputs, outputShape) {
-  const kernelSize = getSizeFromDimensionRange([inputs.size, inputs.size], 0, 2);
+function createAveragePoolProgramInfo(handler, input, outputShape) {
+  const kernelSize = getSizeFromDimensionRange([input.size, input.size], 0, 2);
   const op1 = `value += _X(x);`;
   const op2 = `value /= float(${kernelSize} - pad);`;
-  const inputLayout = handler.getOrCreateTextureLayout(inputs[0]);
-  const poolingCode = GeneratePoolingCode(inputLayout, [inputs.size, inputs.size], [inputs.pad, inputs.pad, inputs.pad, inputs.pad], [inputs.strides_x, inputs.strides_y], op1, op2, '0.0');
+  const inputLayout = handler.getOrCreateTextureLayout(input);
+  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.strides_x, input.strides_y], op1, op2, '0.0');
   const shaderSource = `
       ${poolingCode}
     `;

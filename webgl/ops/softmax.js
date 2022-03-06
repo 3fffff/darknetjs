@@ -119,9 +119,9 @@ class WebGLSoftmax {
     };
   }
   createProgramInfos(inferenceHandler, inputs) {
-    const axis = ShapeUtil.normalizeAxis(this.axis, input.shape.length);
-    const N = ShapeUtil.sizeToDimension(input.shape, axis);
-    const D = ShapeUtil.sizeFromDimension(input.shape, axis);
+    const axis = WebGLSoftmax.normalizeAxis(this.axis, input.shape.length);
+    const N = WebGLSoftmax.sizeToDimension(input.shape, axis);
+    const D = WebGLSoftmax.sizeFromDimension(input.shape, axis);
     const computeMaxProgramInfo = this.createComputeMaxProgramInfo(inferenceHandler, inputs[0], N, D, [N]);
     const computeScaleProgramInfo = this.createComputScaleProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, [N]);
     const softMaxProgramInfo = this.createSoftMaxProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, computeScaleProgramInfo.outputLayout);
@@ -145,5 +145,33 @@ class WebGLSoftmax {
       });
     }
     return runDatas;
+  }
+  static normalizeAxis(axis, tensorRank) {
+    if (axis < -tensorRank && axis >= tensorRank) {
+      throw new Error('unsupported axis for this operation.');
+    }
+    return axis < 0 ? axis + tensorRank : axis;
+  }
+  // `axis` inclusive
+  static sizeFromDimension(dims, axis) {
+    if (axis < 0 || axis > dims.length) {
+      throw new Error(`invalid dimension of ${axis} for sizeFromDimension as Tensor has ${dims.length} dimensions.`);
+    }
+    return WebGLSoftmax.getSizeFromDimensionRange(dims, axis, dims.length);
+  }
+
+  static getSizeFromDimensionRange(dims, start, end) {
+    let size = 1;
+    for (let i = start; i < end; i++) {
+      // safety check as this method is called by multiple other methods requiring size.
+      // size cannot be 0 or negative.
+      if (dims[i] <= 0) {
+        throw new Error(
+          // tslint:disable-next-line:max-line-length
+          `cannot get valid size from specified dimension range. Most likely the range contains 0 or negative values in them.`);
+      }
+      size *= dims[i];
+    }
+    return size;
   }
 }

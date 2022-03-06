@@ -1,23 +1,22 @@
 "use strict";
 
 class WebGLActivation {
-  static createProgramInfo(handler,im2colLayout, input, outputShape) {
+  static createProgramInfo(handler, Layout, input, outputShape) {
     const glsl = getGlsl(handler.glContext.version);
     const shaderSource = getGlActivation(input.activation, glsl)
-    if(shaderSource == null) return
+    if (shaderSource == null) return
     return {
       hasMain: true,
-      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, im2colLayout.shape)],
+      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, Layout.shape)],
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers: ['A'],
       shaderSource,
     };
   }
-  static createRunData(handler,glProg,layer) {
-    const inputTDs = [handler.getOrCreateTextureData(layer, glProg.inputLayouts[0])];
+  static createRunData(handler, glProg, outTextureID) {
     return {
-      inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', layer),
+      inputTextureDatas: [handler.getOrCreateTextureData(outTextureIDs, glProg.inputLayouts[0])],
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', outTextureID),
       uniformData: {}
     }
   }

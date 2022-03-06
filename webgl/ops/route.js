@@ -28,20 +28,20 @@ class WebGLRoute {
       shaderSource,
     };
   }
-  static createRunData(handler, inputs, glProg, layer) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
-    const sizeInConcatAxis = new Array(glProg.inputLayouts.length);
+  static createRunData(handler) {
+    const inputTDs = this.textures.map((t, i) => handler.getOrCreateTextureData(t, this.glProg.inputLayouts[i]));
+    const sizeInConcatAxis = new Array(this.glProg.inputLayouts.length);
     let previousSum = 0;
-    for (let i = 0; i < glProg.inputLayouts.length; ++i) {
-      previousSum += glProg.inputLayouts[i].shape[1];
+    for (let i = 0; i < this.glProg.inputLayouts.length; ++i) {
+      previousSum += this.glProg.inputLayouts[i].shape[1];
       sizeInConcatAxis[i] = previousSum;
     }
     const uniformData = { 'sizeInConcatAxis': sizeInConcatAxis };
-    return {
+    return [{
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', layer),
+      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', "t" + this.index),
       uniformData
-    };
+    }];
   }
   static getTextureIndexWhereDataResidesLinearSearch(numberOfTensors) {
     return `int getTextureWhereDataResides(int index) {

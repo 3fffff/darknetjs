@@ -24,7 +24,7 @@ class WebGLBatchNormalization {
       shaderSource
     };
   }
-  static createRunData(handler, inputs) {
+  static createRunData(handler) {
     const inputTDs = [handler.getOrCreateTextureData(inputs, this.glProg.inputLayouts)];
     inputs.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
     console.log(inputTDs)

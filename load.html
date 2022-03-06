@@ -111,26 +111,6 @@
       temporaryFileReader.readAsArrayBuffer(inputFile);
     });
   };
-  /*  async function loadwasm() {
-      let x = '../wforward.wasm';
-      let instance = null;
-      let memoryStates = new WeakMap();
-  
-      let s = "";
-      fetch(x).then(response =>
-        response.arrayBuffer()
-      ).then(bytes => {
-        console.log(bytes)
-        WebAssembly.instantiate(bytes, {
-          env: {"b":_abort,"a":_emscripten_resize_heap,"memory":wasmMemory,"table":wasmTable},
-        })
-      }
-      ).then(results => {
-        instance = results.instance;
-        console.log(instance)
-      });
-    }
-    loadwasm()*/
 
   const handleUploadWeight = async event => {
     const file = event.target.files[0];
@@ -156,10 +136,8 @@
     const fileContentDiv = document.querySelector('div#file-content');
     try {
       console.log(loadWeight)
-      console.time()
       // WasmBinding.getInstance().dispose()
       await backend.run(imageLoader.pixels)
-      console.timeEnd()
       const img = new ImageProcess()
       const dets = img.get_network_boxes(backend.layers, 1, 1, 0.2, 0, 0);
       console.log(dets)
