@@ -8,11 +8,9 @@ class WebGLMatMul {
       float process(int indices[${rank}]) {
           int a[${rank}];
           int b[${rank}];
-          ${declareC}
 
           copyVec(indices, a);
           copyVec(indices, b);
-          ${broadcastC}
 
           float value = 0.0;
           for (int k=0; k<${sharedDim}; ++k) {
@@ -31,11 +29,11 @@ class WebGLMatMul {
       shaderSource,
     };
   }
-  static createRunData(handler, inputs,glProg) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
+  static createRunData(handler, textures, glProg, outTextureID) {
+    const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
     return {
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", this),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", "t" + outTextureID),
       uniformData: {}
     };
   }

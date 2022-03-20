@@ -29,6 +29,12 @@ class WebGL {
     this.textureDataCache.forEach(td => this.textureManager.releaseTexture(td, true));
     this.textureDataCache = new Map();
   }
+  initFirstTexture(textureData, data) {
+    const textureDataType = 'float';
+    const encoder = this.glContext.getEncoder(textureDataType, 1, 1);
+    console.log(`Init first image texture of size ${textureData.width}x${textureData.height}`);
+    this.glContext.updateTexture(textureData.texture, textureData.width, textureData.height, encoder, this.textureManager.toTextureData(data));
+  }
   /**
    * Create a TextureData object from a tensor.
    * Usage = Encoder.Usage.UploadOnly.
@@ -71,10 +77,10 @@ class WebGL {
   createTextureDataFromLayoutBindTensor(layout, dataType, data, tensor) {
     return this.createTextureData(layout, dataType, tensor.TextureID, data, tensor, 1 /* UploadOnly */);
   }
-  createTextureData(layout, dataType = 'float32', TextureID, data, tensor, usage) {
+  createTextureData(layout, dataType = 'float32', TextureID, data, usage) {
     console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
     const texture = this.textureManager.createTextureFromLayout(dataType, layout, data, usage);
-    return this.createTextureDataFromTexture(layout, dataType, texture, tensor, TextureID);
+    return this.createTextureDataFromTexture(layout, dataType, texture, TextureID);
   }
   /**
    * Create a TextureData object, using the given texture.
@@ -84,9 +90,9 @@ class WebGL {
    * @param tensorId the tensor ID of the shared tensor data
    */
   createSharedTextureData(layout, dataType, texture, tensorId) {
-    return this.createTextureDataFromTexture(layout, dataType, texture, undefined, tensorId);
+    return this.createTextureDataFromTexture(layout, dataType, texture, tensorId);
   }
-  createTextureDataFromTexture(layout, dataType, texture, tensor, tensorId) {
+  createTextureDataFromTexture(layout, dataType, texture, tensorId) {
     const textureData = Object.assign(Object.assign({}, layout), {
       gldata: () => {
         return this.readTexture(textureData);

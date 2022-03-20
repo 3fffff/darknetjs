@@ -13,26 +13,26 @@ class TextureManager {
   constructor(glContext) {
     this.glContext = glContext;
   }
-  toTextureData(dataType, data) {
+  toTextureData(data) {
     if (!data) return undefined;
     return (data instanceof Float32Array) ? data : new Float32Array(data);
   }
   createTextureFromLayout(dataType, layout, data, usage) {
     const textureDataType = 'float';
     const encoder = this.glContext.getEncoder(textureDataType, layout.channels || 1, usage);
-    console.log('TextureManager', `Creating new texture of size ${layout.width}x${layout.height}`);
-    const texture = this.glContext.allocateTexture(layout.width, layout.height, encoder, this.toTextureData(dataType, data));
+    //console.log('TextureManager', `Creating new texture of size ${layout.width}x${layout.height}`);
+    const texture = this.glContext.allocateTexture(layout.width, layout.height, encoder, this.toTextureData( data));
     return texture;
   }
   readTexture(td, dataType, channels) {
     if (!channels) channels = 1;
-      const dataSize = td.shape.reduce((a, b) => a * b) * channels;
-      return this.glContext.readTexture(td.texture, td.width, td.height, dataSize, dataType, channels);
+    const dataSize = td.shape.reduce((a, b) => a * b) * channels;
+    return this.glContext.readTexture(td.texture, td.width, td.height, dataSize, dataType, channels);
   }
   readUint8TextureAsFloat(td) {
-      const dataSize = td.shape.reduce((a, b) => a * b);
-      const data = this.glContext.readTexture(td.texture, td.width, td.height, dataSize * 4, 'byte', 4);
-      return new Float32Array(data.buffer, data.byteOffset, dataSize);
+    const dataSize = td.shape.reduce((a, b) => a * b);
+    const data = this.glContext.readTexture(td.texture, td.width, td.height, dataSize * 4, 'byte', 4);
+    return new Float32Array(data.buffer, data.byteOffset, dataSize);
   }
   releaseTexture(textureData, deleteTexture) {
     if (deleteTexture) {

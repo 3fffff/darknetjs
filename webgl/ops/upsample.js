@@ -26,12 +26,10 @@ class WebGLUpsample {
       shaderSource
     };
   }
-  static createRunData(handler) {
-    const inputTD = handler.getOrCreateTextureData(this.textures[0], this.glProg.inputLayouts[0]);
-    const outputTD = handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32", "t" + this.index);
+  static createRunData(handler, texture, glProg, outTextureID) {
     return [{
-      inputTextureDatas: [inputTD],
-      outputTextureData: outputTD
+      inputTextureDatas: [handler.getOrCreateTextureData(texture, glProg.inputLayouts[0])],
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", "t" + outTextureID)
     }];
   }
 }

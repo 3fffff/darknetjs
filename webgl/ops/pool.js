@@ -3,11 +3,10 @@ class WebGLPool {
   static createProgramInfo(handler, inputs, outputShape) {
     return createMaxPoolProgramInfo(handler, inputs, outputShape);
   }
-  static createRunData(handler) {
-    const inputTDs = [handler.getOrCreateTextureData(this.textures[0], this.glProg.inputLayouts[0])];
+  static createRunData(handler, textures, glProg, outTextureID)  {
     return [{
-      inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, "float32", "t" + this.index),
+      inputTextureDatas: [handler.getOrCreateTextureData(textures[0], glProg.inputLayouts[0])],
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", "t" + outTextureID),
       uniformData: {}
     }];
   }
@@ -93,6 +92,11 @@ function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) 
   codeHEnd = `
               }
             `;
+  const codeHW = `
+  for (int j = 0; j < ${inputDims[1]}; j++) {
+    x[${rank} - 2] = j * ${inputDims[2]} * ${inputDims[3]};
+    ${op1}
+  `;
   const poolingCode = `
             float process(int indices[${rank}]) {
               int x[${rank}];

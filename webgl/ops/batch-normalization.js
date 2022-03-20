@@ -24,11 +24,10 @@ class WebGLBatchNormalization {
       shaderSource
     };
   }
-  static createRunData(handler) {
-    const inputTDs = [handler.getOrCreateTextureData(inputs, this.glProg.inputLayouts)];
-    inputs.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
-    console.log(inputTDs)
-    const outputTD = handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32');
+  static createRunData(handler, textures, glProg, outTextureID) {
+    const inputTDs = [handler.getOrCreateTextureData(textures, glProg.inputLayouts)];
+    textures.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
+    const outputTD = handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', outTextureID);
     return { inputTextureDatas: inputTDs, outputTextureData: outputTD, uniformData: {} };
   }
 }

@@ -112,7 +112,6 @@ class Backward {
     const delta = layers[l.index + 1]
     const w_offset = -l.pad / 2;
     const h_offset = -l.pad / 2;
-
     for (let b = 0; b < l.batch; ++b) {
       for (let k = 0; k < l.c; ++k) {
         for (let i = 0; i < l.h; ++i) {

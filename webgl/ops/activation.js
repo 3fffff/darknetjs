@@ -1,104 +1,75 @@
 "use strict";
-
-class WebGLActivation {
-  static createProgramInfo(handler, Layout, input, outputShape) {
-    const glsl = getGlsl(handler.glContext.version);
-    const shaderSource = getGlActivation(input.activation, glsl)
-    if (shaderSource == null) return
-    return {
-      hasMain: true,
-      inputLayouts: [handler.getOrCreateTextureLayout(input.TextureID, Layout.shape)],
-      outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers: ['A'],
-      shaderSource,
-    };
-  }
-  static createRunData(handler, glProg, outTextureID) {
-    return {
-      inputTextureDatas: [handler.getOrCreateTextureData(outTextureIDs, glProg.inputLayouts[0])],
-      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', outTextureID),
-      uniformData: {}
-    }
-  }
-}
-function getGlActivation(a, glsl) {
-  switch (a) {
+function getGlActivation(type) {
+  switch (type) {
     case "LOGISTIC":
-      return glslSigmoid(glsl)
+      return glslSigmoid(type)
     case "RELU":
-      return glslRelu(glsl);
+      return glslRelu(type);
     case "LEAKY":
-      return glslLeakyRelu(glsl)
+      return glslLeakyRelu(type)
     case "MISH":
-      return glslMish(glsl)
+      return glslMish(type)
     case "SWISH":
-      return glslSwish(glsl)
-    default: return null;
+      return glslSwish(type)
+    default: throw new Error("not recognized activation");
   }
 }
-function glslElu(glsl) {
+function glslElu(type) {
   const alpha = Math.exp(0.1)
-  return `void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(v >= 0.0 ? v: (exp(v) - 1.0) * ${alpha}); /* float number format */
-  }`
+  return {function:`float ${type}(float v) {
+    return v >= 0.0 ? v: (exp(v) - 1.0) * ${alpha}; /* float number format */
+  }`,call:`${type}(v);`}
 }
-function glslLeakyRelu(glsl) {
+function glslLeakyRelu(type) {
   const alpha = 0.1
+  return {func:`
+  float ${type}(float v) {
+    return v < 0.0 ? v * float(${alpha}) : v;
+  }
+  `,call:`${type}(value);`};
+}
+function glslRelu(type) {
+  return {func:`
+  float ${type}(float v) {
+    return v < 0.0 ? 0.0 : v;
+  }
+  `,call:`${type}(value);`}
+}
+function glslSigmoid(type) {
   return `
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(v < 0.0 ? v * float(${alpha}) : v);
+  float ${type}(float v) {
+    return 1.0 / (1.0 + exp(-v));
   }
   `;
 }
-function glslRelu(glsl) {
+function glslSwish(type) {
   return `
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(v < 0.0 ? 0.0 : v);
+  float ${type}(float v) {
+    return v*(1.0 / (1.0 + exp(-v));
   }
   `;
 }
-function glslSigmoid(glsl) {
+function glslTanh(type) {
   return `
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(1.0 / (1.0 + exp(-v)));
-  }
-  `;
-}
-function glslSwish(glsl) {
-  return `
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(v*(1.0 / (1.0 + exp(-v)));
-  }
-  `;
-}
-function glslTanh(glsl) {
-  return `
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
+  float ${type}(float v){
     v = clamp(v, -10., 10.);
     v = exp(2.*v);
-    ${glsl.output} = vec4((v - 1.) / (v + 1.));
+    return (v - 1.) / (v + 1.);
   }
   `;
 }
-function glslSoftplus(glsl) {
+function glslSoftplus(type) {
   const threshold = 20
   return `
-  void main() {
+  float ${type}() {
     float threshold = float(${threshold});
-    float v = ${glsl.texture2D}(A, TexCoords).r;
     if (v > threshold) ${glsl.output} = vec4(v);           
     else if (v < -threshold) ${glsl.output} = vec4(exp(v)); 
     else ${glsl.output} = vec4(log(exp(v) + 1.0));
   }`
 }
 
-function glslMish(glsl) {
+function glslMish(type) {
   const threshold = 20
   return `
   float softplus(float v){
@@ -113,9 +84,8 @@ function glslMish(glsl) {
     v = exp(2.*v);
     return (v - 1.) / (v + 1.);
   }
-  void main() {
-    float v = ${glsl.texture2D}(A, TexCoords).r;
-    ${glsl.output} = vec4(v * tang(softplus(v)));
+  float ${type}(float v) {
+    return v * tang(softplus(v));
   }
   `
 }

@@ -1,11 +1,11 @@
 class WebGLSum {
-  static createProgramInfo(handler, inputs, outputShape, outTextureID) {
+  static createProgramInfo(handler, inputs, outputShape, type) {
     const glsl = getGlsl(handler.glContext.version);
-    const sumLine = inputs.map((v, i) => `${glsl.texture2D}(X${i},TexCoords)`).join(getSamOrShortcut(inputs.type));
+    const sumLine = inputs.map((v, i) => `${glsl.texture2D}(X${i},TexCoords)`).join(getSamOrShortcut(type));
     const samplers = inputs.map((v, i) => `X${i}`);
     return {
       inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape)),
-      outputLayout: handler.createTextureLayoutFromShape(outputShape, 'float32', outTextureID),
+      outputLayout: handler.createTextureLayoutFromShape(outputShape),
       samplers,
       shaderSource: `
       void main() {
@@ -15,13 +15,13 @@ class WebGLSum {
       hasMain: true
     };
   }
-  static createRunData(handler) {
-    const inputTDs = this.textures.map((t, i) => handler.getOrCreateTextureData(t.TextureID, this.glProg.inputLayouts[i]));
-    return {
+  static createRunData(handler, textures, glProg, outTextureID) {
+    const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t.TextureID, glProg.inputLayouts[i]));
+    return [{
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', "t" + this.index),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', "t" + outTextureID),
       uniformData: {}
-    };
+    }];
   }
 }
 function getSamOrShortcut(type) {

@@ -1,6 +1,6 @@
 "use strict";
 class WebGLRoute {
-  static createProgramInfo(handler, inputs, outputShape, groups) {
+  static createProgramInfo(handler, inputs, outputShape, groups = 1) {
     const rank = outputShape.length;
     // in most cases linear search is sufficient, as in most scenarios, only 2 tensors are concatenated
     const getTextureIndexWhereDataResidesMethod = WebGLRoute.getTextureIndexWhereDataResidesLinearSearch(inputs.length);
@@ -28,18 +28,32 @@ class WebGLRoute {
       shaderSource,
     };
   }
-  static createRunData(handler) {
-    const inputTDs = this.textures.map((t, i) => handler.getOrCreateTextureData(t, this.glProg.inputLayouts[i]));
-    const sizeInConcatAxis = new Array(this.glProg.inputLayouts.length);
+  static createSplitProgramInfo(handler, input, outputShape, offset, axis = 1) {
+    const rank = outputShape.length;
+    const shaderSource = `
+    float process(int indices[${rank}]) {
+      indices[${axis}] += ${offset};
+      return _A(indices);
+    }`;
+    return {
+      inputLayouts: [handler.getOrCreateTextureLayout(input[0].TextureID, input[0].shape)],
+      outputLayout: handler.createTextureLayoutFromShape(outputShape),
+      samplers: ['A'],
+      shaderSource,
+    };
+  }
+  static createRunData(handler, textures, glProg, outTextureID) {
+    const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
+    const sizeInConcatAxis = new Array(glProg.inputLayouts.length);
     let previousSum = 0;
-    for (let i = 0; i < this.glProg.inputLayouts.length; ++i) {
-      previousSum += this.glProg.inputLayouts[i].shape[1];
+    for (let i = 0; i < glProg.inputLayouts.length; ++i) {
+      previousSum += glProg.inputLayouts[i].shape[1];
       sizeInConcatAxis[i] = previousSum;
     }
     const uniformData = { 'sizeInConcatAxis': sizeInConcatAxis };
     return [{
       inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(this.glProg.outputLayout, 'float32', "t" + this.index),
+      outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', "t" + outTextureID),
       uniformData
     }];
   }
