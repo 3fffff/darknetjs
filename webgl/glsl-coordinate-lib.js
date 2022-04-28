@@ -8,7 +8,7 @@ class CoordsGlslLib extends GlslLib {
     super(context);
   }
   getFunctions() {
-    return Object.assign(Object.assign(Object.assign(Object.assign({}, this.offsetToCoords()), this.coordsToOffset()), this.toVec()), this.valueFrom());
+    return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, this.offsetToCoords()), this.coordsToOffset()), this.toVec()), this.valueFrom()), this.GetCommonUtilFuncs());
   }
   /**
    * Produces a function that can map from
@@ -27,6 +27,58 @@ class CoordsGlslLib extends GlslLib {
       `)
     };
   }
+  /**
+ * Generates code for common UV coords computation utility functions.
+ */
+  GetCommonUtilFuncs() {
+    let result = {};
+    let funcName = "uvFromFlat";
+    result[funcName] = new GlslLibRoutine("\n    vec2 uvFromFlat(int texNumR, int texNumC, int index) {\n      int texC = index / texNumR;\n      int texR = index - texC * texNumR;\n      // TODO: swap texR, texC order in following function so row is corresponding to u and column is corresponding to v.\n      return (vec2(texR, texC) + halfCR) / vec2(texNumR, texNumC);\n    }\n    ");
+    funcName = "packedUVfrom1D";
+    result[funcName] = new GlslLibRoutine("\n      vec2 packedUVfrom1D(int texNumR, int texNumC, int index) {\n        int texelIndex = index / 2;\n        int texR = texelIndex / texNumC;\n        int texC = texelIndex - texR * texNumC;\n        return (vec2(texC, texR) + halfCR) / vec2(texNumC, texNumR);\n      }\n      ");
+    funcName = "packedUVfrom2D";
+    result[funcName] = new GlslLibRoutine("\n      vec2 packedUVfrom2D(int texNumR, int texNumC, int texelsInLogicalRow, int row, int col) {\n        int texelIndex = (row / 2) * texelsInLogicalRow + (col / 2);\n        int texR = texelIndex / texNumC;\n        int texC = texelIndex - texR * texNumC;\n        return (vec2(texC, texR) + halfCR) / vec2(texNumC, texNumR);\n      }\n      ");
+    funcName = "packedUVfrom3D";
+    result[funcName] = new GlslLibRoutine("\n      vec2 packedUVfrom3D(int texNumR, int texNumC,\n          int texelsInBatch, int texelsInLogicalRow, int b,\n          int row, int col) {\n        int index = b * texelsInBatch + (row / 2) * texelsInLogicalRow + (col / 2);\n        int texR = index / texNumC;\n        int texC = index - texR * texNumC;\n        return (vec2(texC, texR) + halfCR) / vec2(texNumC, texNumR);\n      }\n      ");
+    funcName = "sampleTexture";
+    let glsl = getGlsl(this.context.glContext.version);
+    result[funcName] = new GlslLibRoutine("\n        float sampleTexture(sampler2D textureSampler, vec2 uv) {\n            return " + glsl.texture2D + "(textureSampler, uv).r;\n        }");
+    return result;
+  };
+  /**
+ * Generates code for output sampler.
+ */
+  getOutputUnpacked4DCoords(shape, texShape) {
+    const funcName = `getOutputCoords`;
+    let source = '';
+    const rank = shape.length;
+
+    let strides = null;
+    if (rank < 2) strides = [];
+    strides = new Array(rank - 1);
+    strides[rank - 2] = shape[rank - 1];
+    for (let i = rank - 3; i >= 0; --i) strides[i] = strides[i + 1] * shape[i + 1];
+    const coordsToCompute = ['r', 'c', 'd', 'd2'];
+    const coordsFromIndexSnippet = strides
+      .map((stride, i) => {
+        const line1 = `int ${coordsToCompute[i]} = index / ${stride}`;
+        const line2 = i === strides.length - 1 ?
+          `int ${coordsToCompute[i + 1]} = index - ${coordsToCompute[i]} * ${stride}` :
+          `index -= ${coordsToCompute[i]} * ${stride}`;
+        return `${line1}; ${line2};`;
+      })
+      .join('');
+
+    source = `ivec4 ${funcName}() {
+      ivec2 resTexRC = ivec2(TexCoords.xy *
+                            vec2(${texShape[0]}, ${texShape[1]}));
+      int index = resTexRC.y * ${texShape[0]} + resTexRC.x;
+      ${coordsFromIndexSnippet}
+      return ivec4(r, c, d, d2);
+    }`;
+    return { getOutputCoords: source };
+  }
+
   /**
    * Produces a function that can map from
    * 2D normalzied coordinates (s,t) to a flat offset

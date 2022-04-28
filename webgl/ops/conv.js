@@ -122,7 +122,7 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
   };
 }
 function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape, activ) {
-  const {func,call} = activ == "LINEAR" ? {func:``,call:``} : getGlActivation(activ)
+  const { func, call } = activ == "LINEAR" ? { func: ``, call: `` } : getGlActivation(activ)
   console.log(func)
   const xshape = inputs[0].shape
   const kshape = inputs[1].shape
@@ -177,10 +177,12 @@ class WebGLGroupConv {
     const processBias = hasBias ? `dotProd += getBias(output_channel);` : ``;
     const xShape = inputs[0].shape;
     const wShape = inputs[1].shape;
-    const outputChannelsPerGroup = wShape[0] / this.group;
-    const outputShape = WebGLConv.calcOutputShape(xShape, wShape, inputs[1].dilation, inputs[1].pads, this.strides);
+    const outputChannelsPerGroup = wShape[0] / inputs[1].groups;
+    const outputShape = WebGLConv.calcOutputShape(xShape, wShape, inputs[1].dilation, inputs[1].pad, [input[1].stride_x, input[1].stride_x]);
     const glsl = getGlsl(handler.session.backend.glContext.version);
-
+    const samplers = hasBias ? ['X', 'W', 'Bias'] : ['X', 'W']
+    const samplersProg = ``
+    for (let i = 0; i < samplers.length; i++)samplersProg += getUnpackedSampler4D(`get${samplers[i]}`, samplers[i])
     const shaderSource = `
     const ivec2 strides = ivec2(${inputs[1].strides_x}, ${inputs[1].strides_y});
     const ivec2 pads = ivec2(${inputs[1].pad}, ${inputs[1].pad});
@@ -216,12 +218,21 @@ class WebGLGroupConv {
     return {
       inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t)),
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers: hasBias ? ['X', 'W', 'Bias'] : ['X', 'W'],
+      samplers: samplers,
       shaderSource,
       hasMain: true,
     };
   }
-
+  getUnpackedSampler4D(funcName, name, inputLayout) {
+    const shape = inputLayout.unpackedShape;
+    const stride2 = shape[3];
+    const stride1 = shape[2] * stride2;
+    const stride0 = shape[1] * stride1;
+    const texNumR = inputLayout.width;
+    const texNumC = inputLayout.height;
+    const source = "\n        float " + funcName + "(int row, int col, int depth, int depth2) {\n          int index = row * " + stride0 + " + col * " + stride1 + " +\n              depth2 * " + stride2 + " + depth;\n          vec2 uv = uvFromFlat(" + texNumR + ", " + texNumC + ", index);\n          return sampleTexture(" + name + ", uv);\n        }\n      ";
+    return new GlslLibRoutine(source, ['coordinates.uvFromFlat', 'coordinates.sampleTexture', 'coordinates.coordsToOffset']);
+  };
   createRunData(handler, programInfo, inputs) {
     const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, programInfo.inputLayouts[i]));
     return {

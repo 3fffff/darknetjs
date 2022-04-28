@@ -16,62 +16,76 @@ function getGlActivation(type) {
 }
 function glslElu(type) {
   const alpha = Math.exp(0.1)
-  return {function:`float ${type}(float v) {
+  return {
+    func: `float ${type}(float v) {
     return v >= 0.0 ? v: (exp(v) - 1.0) * ${alpha}; /* float number format */
-  }`,call:`${type}(v);`}
+  }`, call: `${type}(v);`
+  }
 }
 function glslLeakyRelu(type) {
   const alpha = 0.1
-  return {func:`
+  return {
+    func: `
   float ${type}(float v) {
     return v < 0.0 ? v * float(${alpha}) : v;
   }
-  `,call:`${type}(value);`};
+  `, call: `${type}(value);`
+  };
 }
 function glslRelu(type) {
-  return {func:`
+  return {
+    func: `
   float ${type}(float v) {
     return v < 0.0 ? 0.0 : v;
   }
-  `,call:`${type}(value);`}
+  `, call: `${type}(value);`
+  }
 }
 function glslSigmoid(type) {
-  return `
+  return {
+    func: `
   float ${type}(float v) {
     return 1.0 / (1.0 + exp(-v));
   }
-  `;
+  `, call: `${type}(value);`
+  };
 }
 function glslSwish(type) {
-  return `
+  return {
+    func: `
   float ${type}(float v) {
     return v*(1.0 / (1.0 + exp(-v));
   }
-  `;
+  `, call: `${type}(value);`
+  };
 }
 function glslTanh(type) {
-  return `
+  return {
+    func: `
   float ${type}(float v){
     v = clamp(v, -10., 10.);
     v = exp(2.*v);
     return (v - 1.) / (v + 1.);
   }
-  `;
+  `, call: `${type}(value);`
+  };
 }
 function glslSoftplus(type) {
   const threshold = 20
-  return `
+  return {
+    func: `
   float ${type}() {
     float threshold = float(${threshold});
-    if (v > threshold) ${glsl.output} = vec4(v);           
-    else if (v < -threshold) ${glsl.output} = vec4(exp(v)); 
-    else ${glsl.output} = vec4(log(exp(v) + 1.0));
-  }`
+    if (v > threshold) return v;           
+    else if (v < -threshold) return exp(v); 
+    else return log(exp(v) + 1.0);
+  }`, call: `${type}(value);`
+  }
 }
-
 function glslMish(type) {
   const threshold = 20
-  return `
+  return {
+    func: `
   float softplus(float v){
     float threshold = float(${threshold});
     if (v > threshold) v = v;           
@@ -87,5 +101,6 @@ function glslMish(type) {
   float ${type}(float v) {
     return v * tang(softplus(v));
   }
-  `
+  `, call: `${type}(value);`
+  }
 }

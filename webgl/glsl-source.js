@@ -41,9 +41,9 @@ function getFragShaderPreamble(version) {
     precision highp float;
     precision highp int;
     precision highp sampler2D;
+    const vec2 halfCR = vec2(0.5, 0.5);
     ${glsl.varyingFrag} vec2 TexCoords;
     ${glsl.outputDeclaration}
-
     `;
 }
 function getDefaultFragShaderMain(version, outputShapeLength) {

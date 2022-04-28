@@ -63,7 +63,7 @@
   function updateProgress(evt) {
     // evt is an ProgressEvent.
     if (evt.lengthComputable) {
-      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      let percentLoaded = Math.round((evt.loaded / evt.total) * 100);
       if (percentLoaded == 100)
         console.log('loaded')
     }
