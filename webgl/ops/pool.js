@@ -1,9 +1,10 @@
 "use strict";
 class WebGLPool {
-  static createProgramInfo(handler, inputs, outputShape) {
-    return createMaxPoolProgramInfo(handler, inputs, outputShape);
+  static createProgramInfo(handler, inputs, outputShape, type) {
+    if (type == 'MAXPOOL') return createMaxPoolProgramInfo(handler, inputs, outputShape, type);
+    else return createAveragePoolProgramInfo(handler, inputs, outputShape, type);
   }
-  static createRunData(handler, textures, glProg, outTextureID)  {
+  static createRunData(handler, textures, glProg, outTextureID) {
     return [{
       inputTextureDatas: [handler.getOrCreateTextureData(textures[0], glProg.inputLayouts[0])],
       outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, "float32", "t" + outTextureID),
@@ -11,10 +12,10 @@ class WebGLPool {
     }];
   }
 }
-function createMaxPoolProgramInfo(handler, input, outputShape) {
+function createMaxPoolProgramInfo(handler, input, outputShape, type) {
   const op1 = `value = max(_X(x), value);`;
   const inputLayout = handler.createTextureLayoutFromShape(input.shape);
-  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.stride_x, input.stride_y], op1, '', '-1e5');
+  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.stride_x, input.stride_y], op1, '', '-1e5', type);
   const shaderSource = `${poolingCode}`;
   return {
     inputLayouts: [inputLayout],
@@ -23,12 +24,12 @@ function createMaxPoolProgramInfo(handler, input, outputShape) {
     shaderSource,
   };
 }
-function createAveragePoolProgramInfo(handler, input, outputShape) {
+function createAveragePoolProgramInfo(handler, input, outputShape, type) {
   const kernelSize = getSizeFromDimensionRange([input.size, input.size], 0, 2);
   const op1 = `value += _X(x);`;
   const op2 = `value /= float(${kernelSize} - pad);`;
-  const inputLayout = handler.getOrCreateTextureLayout(input);
-  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.strides_x, input.strides_y], op1, op2, '0.0');
+  const inputLayout = handler.getOrCreateTextureLayout(input, input.shape);
+  const poolingCode = GeneratePoolingCode(inputLayout, [input.size, input.size], [input.pad, input.pad, input.pad, input.pad], [input.strides_x, input.strides_y], op1, op2, '0.0', type);
   const shaderSource = `
       ${poolingCode}
     `;
@@ -39,7 +40,7 @@ function createAveragePoolProgramInfo(handler, input, outputShape) {
     shaderSource,
   };
 }
-function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) {
+function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal, type) {
   const inputDims = x.shape;
   const rank = x.shape.length;
   const kw = kernelShape[kernelShape.length - 1];
@@ -89,14 +90,15 @@ function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) 
                   x[${rank} - 2] = indices[${rank} - 2] * ${sh} - ${phStart} + j;
                 `;
   }
-  codeHEnd = `
-              }
-            `;
-  const codeHW = `
+  codeHEnd = ` }`;
+  let code = ``
+  if (type == 'AVGPOOL') {
+    code = `
   for (int j = 0; j < ${inputDims[1]}; j++) {
     x[${rank} - 2] = j * ${inputDims[2]} * ${inputDims[3]};
     ${op1}
-  `;
+  }`;
+  } else code = codeH + codeW + codeHEnd + op2
   const poolingCode = `
             float process(int indices[${rank}]) {
               int x[${rank}];
@@ -104,10 +106,7 @@ function GeneratePoolingCode(x, kernelShape, pads, strides, op1, op2, startVal) 
 
               float value = ${startVal};
               int pad = 0;
-              ${codeH}
-              ${codeW}
-              ${codeHEnd}
-              ${op2}
+              ${code}
               return value;
             }
           `;

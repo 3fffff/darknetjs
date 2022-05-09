@@ -132,7 +132,6 @@ class Forward {
             let valid = false
             if (l.type == 'AVGPOOL') {
               for (let i = 0; i < l.h * l.w; ++i) l.output[out_index] += (input[i + l.h * l.w * (k + b * l.c)]) / (l.h * l.w);
-              //l.output[out_index] /= l.h * l.w;
             } else {
               let max = -Number.MAX_VALUE;
               for (let n = 0; n < l.size; ++n) {

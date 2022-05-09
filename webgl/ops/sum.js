@@ -15,20 +15,23 @@ class WebGLSum {
       hasMain: true
     };
   }
-  static createScaleChannelsProgramInfo(handler, inputs, outputShape, type) {
+  static createScaleChannelsProgramInfo(handler, inputs, outputShape) {
     const glsl = getGlsl(handler.glContext.version);
-    const sumLine = inputs.map((v, i) => `${glsl.texture2D}(X${i},TexCoords)`).join(getSamOrShortcut(type));
-    const samplers = inputs.map((v, i) => `X${i}`);
+    const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape))
+    const X = inputLayouts[1];
+    const rank = inputLayouts[1].shape.length
+    const shaderSource = `
+    float process(int[${rank}] indices) {
+      vec2 position = offsetToCoords(indices[1], ${X.width}, ${X.height});
+      float c = getColorAsFloat(${glsl.texture2D}(C, position));
+
+      return _X(indices) * c;
+    }`;
     return {
-      inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape)),
+      inputLayouts,
       outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers,
-      shaderSource: `
-      void main() {
-        vec4 result = ${sumLine};
-        ${glsl.output} = result;
-      }`,
-      hasMain: true
+      shaderSource,
+      samplers: ['C', 'X'],
     };
   }
   static createRunData(handler, textures, glProg, outTextureID) {

@@ -3,7 +3,7 @@ class WebGLConv {
   static createProgramInfos(handler, inputs, outputShape, activation, batch_normalize) {
     const im2colProgramInfo = createIm2ColProgramInfo(handler, inputs, outputShape);
     const dotProductProgramInfo = createDotProductProgramInfo(handler, im2colProgramInfo.outputLayout, inputs, outputShape, activation);
-    const activationProgramInfo = batch_normalize ? WebGLBatchNormalization.createProgramInfo(handler, dotProductProgramInfo.outputLayout, inputs, outputShape, activation) : null;
+    const BNProgramInfo = batch_normalize ? WebGLBatchNormalization.createProgramInfo(handler, dotProductProgramInfo.outputLayout, inputs, outputShape, activation) : null;
     return [im2colProgramInfo, dotProductProgramInfo].filter(x => !!x);
   }
   static createRunDatas(handler, textures, glProg, outTextureID, batch_normalize) {
@@ -122,15 +122,14 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
   };
 }
 function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape, activ) {
-  const { func, call } = activ == "LINEAR" ? { func: ``, call: `` } : getGlActivation(activ)
-  console.log(func)
+  const { funcActivation, nameActivation } = activ == "LINEAR" ? { funcActivation: ``, nameActivation: `` } : getGlActivation(activ)
   const xshape = inputs[0].shape
   const kshape = inputs[1].shape
   const adjustedKernelShape = [kshape[0], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / (xshape.length * inputs[1].groups))];
   const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length * inputs[1].groups], { breakAxis: 1 });
-  let bLayout;
   const rank = outputShape.length;
   const inputLayouts = [im2colLayout, kLayout];
+  let bLayout;
   if (inputs.length === 3) {
     bLayout = handler.createTextureLayoutFromShape(inputs[2].shape);
     inputLayouts.push(bLayout);
@@ -142,7 +141,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
   if (inputs.length === 3) samplers.push('B');
   const glsl = getGlsl(handler.glContext.version);
   const shaderSource = `
-  ${func}
+  ${funcActivation}
   float process(int indices[${rank}]) {
     int b[1];
     b[0] = indices[1];
@@ -160,7 +159,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
       ++im2colOffset;
       ++kernelOffset;
     }
-    ${call}
+    ${nameActivation}
     return value;
   }`;
   return {
@@ -171,74 +170,70 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
     params: { 'sharedDim': sharedDim }
   };
 }
+
 class WebGLGroupConv {
-  createProgramInfo(handler, inputs) {
-    const hasBias = inputs.length > 2;
-    const processBias = hasBias ? `dotProd += getBias(output_channel);` : ``;
-    const xShape = inputs[0].shape;
-    const wShape = inputs[1].shape;
-    const outputChannelsPerGroup = wShape[0] / inputs[1].groups;
-    const outputShape = WebGLConv.calcOutputShape(xShape, wShape, inputs[1].dilation, inputs[1].pad, [input[1].stride_x, input[1].stride_x]);
-    const glsl = getGlsl(handler.session.backend.glContext.version);
-    const samplers = hasBias ? ['X', 'W', 'Bias'] : ['X', 'W']
-    const samplersProg = ``
-    for (let i = 0; i < samplers.length; i++)samplersProg += getUnpackedSampler4D(`get${samplers[i]}`, samplers[i])
-    const shaderSource = `
-    const ivec2 strides = ivec2(${inputs[1].strides_x}, ${inputs[1].strides_y});
-    const ivec2 pads = ivec2(${inputs[1].pad}, ${inputs[1].pad});
-    void main() {
-      ivec4 coords = getOutputCoords();
-      int batch = coords.x;
-      int output_channel = coords.y;
-      ivec2 xRCCorner = coords.zw * strides - pads;
-      int group_id = output_channel / ${outputChannelsPerGroup};
-      float dotProd = 0.0;
-      for (int wInChannel = 0; wInChannel < ${wShape[1]}; wInChannel++) {
-        int input_channel = group_id * ${wShape[1]} + wInChannel;
-        for (int wHeight = 0; wHeight < ${wShape[2]}; wHeight++) {
-          int xHeight = xRCCorner.x + wHeight * ${inputs[1].dilation};
-          if (xHeight < 0 || xHeight >= ${xShape[2]}) {
+  static createProgramInfos(handler, inputs, outputShape, activation, batch_normalize) {
+    const groupConvProgramInfo = createGroupConvProgramInfo(handler, inputs, outputShape, activation);
+    const batchnormProgramInfo = batch_normalize ? WebGLBatchNormalization.createProgramInfo(handler, groupConvProgramInfo.outputLayout, inputs, outputShape, activation) : null;
+    return [groupConvProgramInfo].filter(x => !!x)
+  }
+  static createRunDatas(handler, texture, glProg, outTextureID) {
+    const inputTDs = texture.map((t, i) => handler.getOrCreateTextureData(t, glProg[0].inputLayouts[i]));
+    return [{
+      inputTextureDatas: inputTDs,
+      outputTextureData: handler.createTextureDataFromLayout(glProg[0].outputLayout, 'float32', outTextureID),
+      uniformData: {}
+    }];
+  }
+}
+function createGroupConvProgramInfo(handler, inputs, outputShape, activation, batch_normalize) {
+  const { funcActivation, nameActivation } = activation == "LINEAR" ? { funcActivation: ``, nameActivation: `` } : getGlActivation(activation)
+  const hasBias = inputs.length > 2;
+  const processBias = hasBias ? `value += getBias(output_channel);` : ``;
+  const xShape = inputs[0].shape;
+  const wShape = inputs[1].shape;
+  const outputChannelsPerGroup = wShape[0] / inputs[1].groups;
+  const glsl = getGlsl(handler.glContext.version);
+  const samplers = hasBias ? ['X', 'W', 'Bias'] : ['X', 'W']
+  const shaderSource = `
+  ${funcActivation}
+  const ivec2 strides = ivec2(${inputs[1].stride_x}, ${inputs[1].stride_y});
+  const ivec2 pads = ivec2(${inputs[1].pad}, ${inputs[1].pad});
+  void main() {
+    ivec4 coords = getOutputCoords();
+    int batch = coords.x;
+    int output_channel = coords.y;
+    ivec2 xRCCorner = coords.zw * strides - pads;
+    int group_id = output_channel / ${outputChannelsPerGroup};
+    float value = 0.0;
+    for (int wInChannel = 0; wInChannel < ${wShape[1]}; wInChannel++) {
+      int input_channel = group_id * ${wShape[1]} + wInChannel;
+      for (int wHeight = 0; wHeight < ${wShape[2]}; wHeight++) {
+        int xHeight = xRCCorner.x + wHeight * ${inputs[1].dilation};
+        if (xHeight < 0 || xHeight >= ${xShape[2]}) {
+          continue;
+        }
+        for (int wWidth = 0; wWidth < ${wShape[3]}; wWidth++) {
+          int xWidth = xRCCorner.y + wWidth * ${inputs[1].dilation};
+          if (xWidth < 0 || xWidth >= ${xShape[3]}) {
             continue;
           }
-          for (int wWidth = 0; wWidth < ${wShape[3]}; wWidth++) {
-            int xWidth = xRCCorner.y + wWidth * ${inputs[1].dilation};
-            if (xWidth < 0 || xWidth >= ${xShape[3]}) {
-              continue;
-            }
-            float xVal = getX(batch, input_channel, xWidth, xHeight);
-            float wVal = getW(output_channel, wInChannel, wWidth, wHeight);
-            dotProd += xVal*wVal;
-          }
+          float xVal = getX(batch, input_channel, xWidth, xHeight);
+          float wVal = getW(output_channel, wInChannel, wWidth, wHeight);
+          value += xVal*wVal;
         }
       }
-      ${processBias}
-      ${glsl.output} = vec4(dotProd, .0, .0, .0);
     }
+    ${processBias}
+    ${nameActivation}
+    ${glsl.output} = vec4(value, .0, .0, .0);
+  }
 `;
-    return {
-      inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t)),
-      outputLayout: handler.createTextureLayoutFromShape(outputShape),
-      samplers: samplers,
-      shaderSource,
-      hasMain: true,
-    };
-  }
-  getUnpackedSampler4D(funcName, name, inputLayout) {
-    const shape = inputLayout.unpackedShape;
-    const stride2 = shape[3];
-    const stride1 = shape[2] * stride2;
-    const stride0 = shape[1] * stride1;
-    const texNumR = inputLayout.width;
-    const texNumC = inputLayout.height;
-    const source = "\n        float " + funcName + "(int row, int col, int depth, int depth2) {\n          int index = row * " + stride0 + " + col * " + stride1 + " +\n              depth2 * " + stride2 + " + depth;\n          vec2 uv = uvFromFlat(" + texNumR + ", " + texNumC + ", index);\n          return sampleTexture(" + name + ", uv);\n        }\n      ";
-    return new GlslLibRoutine(source, ['coordinates.uvFromFlat', 'coordinates.sampleTexture', 'coordinates.coordsToOffset']);
+  return {
+    inputLayouts: inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape)),
+    outputLayout: handler.createTextureLayoutFromShape(outputShape),
+    samplers: samplers,
+    shaderSource,
+    hasMain: true,
   };
-  createRunData(handler, programInfo, inputs) {
-    const inputTDs = inputs.map((t, i) => handler.getOrCreateTextureData(t, programInfo.inputLayouts[i]));
-    return {
-      inputTextureDatas: inputTDs,
-      outputTextureData: handler.createTextureDataFromLayout(programInfo.outputLayout, inputTDs[0].tensor.type),
-      uniformData: {}
-    };
-  }
 }
