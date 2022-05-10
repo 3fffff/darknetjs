@@ -17,7 +17,7 @@ extern "C"
   void matmul_f32(void *);
 
   void conv2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *, float *, int32_t *, int32_t, int32_t *,
-   int32_t *, int32_t, float *, float *, float *);
+                      int32_t *, int32_t, float *, float *, float *);
   void convTranspose2D_f32_imp(float *, int32_t *, float *, int32_t *, float *, int32_t *,
                                float *, int32_t *, int32_t, int32_t *, int32_t *, int32_t, float *, float *, float *);
   void im2col_f32(const float *, float *, const int32_t, const int32_t, const int32_t,
@@ -60,8 +60,7 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
   const int filter_channels = W_shape[1];
   const int filter_height = W_shape[2];
   const int filter_width = W_shape[3];
-  const int filter_size =
-      filter_num * filter_channels * filter_height * filter_width / groups;
+  const int filter_size = filter_num * filter_channels * filter_height * filter_width;
 
   const int output_num = Y_shape[0];
   const int output_channels = Y_shape[1];
@@ -87,7 +86,8 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
       delete[] col_buffer_data;
       return;
     }
-    else */if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
+    else */
+    if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s2(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
