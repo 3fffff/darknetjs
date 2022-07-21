@@ -1,23 +1,23 @@
 "use strict";
-const GLSL_ES_2_0 = {
-  version: '',
-  attribute: 'attribute',
-  varyingVertex: 'varying',
-  varyingFrag: 'varying',
-  texture2D: 'texture2D',
-  output: 'gl_FragColor',
-  outputDeclaration: '',
-};
-const GLSL_ES_3_0 = {
-  version: '#version 300 es',
-  attribute: 'in',
-  varyingVertex: 'out',
-  varyingFrag: 'in',
-  texture2D: 'texture',
-  output: 'outputColor',
-  outputDeclaration: 'out vec4 outputColor;',
-};
 function getGlsl(version) {
+  const GLSL_ES_2_0 = {
+    version: '',
+    attribute: 'attribute',
+    varyingVertex: 'varying',
+    varyingFrag: 'varying',
+    texture2D: 'texture2D',
+    output: 'gl_FragColor',
+    outputDeclaration: '',
+  };
+  const GLSL_ES_3_0 = {
+    version: '#version 300 es',
+    attribute: 'in',
+    varyingVertex: 'out',
+    varyingFrag: 'in',
+    texture2D: 'texture',
+    output: 'outputColor',
+    outputDeclaration: 'out vec4 outputColor;',
+  };
   return version === 1 ? GLSL_ES_2_0 : GLSL_ES_3_0;
 }
 function getVertexShaderSource(version) {

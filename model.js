@@ -192,7 +192,7 @@ class Model {
     l.output = new Float32Array(l.batch * l.outputs);
     for (let i = 0; i < total * 2; ++i)l.biases[i] = 0.5;
     if (l.outputs != param.inputs) {
-      new Error("Error: l.outputs == params.inputs \nfilters= in the [convolutional]-layer doesn't correspond to classes= or mask= in [yolo]-layer ");
+      new Error("Error: l.outputs == params.inputs filters= in the [convolutional]-layer doesn't correspond to classes= or mask= in [yolo]-layer ");
     }
     let map_file = this.option_find_str(options, "map", "0");
     if (map_file == null) l.map = read_map(map_file);

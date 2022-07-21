@@ -8,7 +8,7 @@ class ShapeUtilsGlslLib extends GlslLib {
     super(context);
   }
   getFunctions() {
-    return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, this.bcastIndex()), this.bcastMatmulIndex()), this.offsetToIndices()), this.indicesToOffset()), this.incrementIndices());
+    return Object.assign({}, this.bcastIndex(), this.bcastMatmulIndex(), this.offsetToIndices(), this.indicesToOffset(), this.incrementIndices());
   }
   bcastIndex() {
     const programInfo = this.context.programInfo;

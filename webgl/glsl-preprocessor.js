@@ -7,18 +7,18 @@
  *  Loop unrolling (not implemented)
  *  Macro resolution (not implemented)
  */
- var glslRegistry = {
-  'encoding':EncodingGlslLib,
-  'fragcolor': FragColorGlslLib,
-  'vec': VecGlslLib,
-  'shapeUtils': ShapeUtilsGlslLib,
-  'coordinates': CoordsGlslLib,
-};
 class GlslPreprocessor {
   constructor(glContext, programInfo) {
     this.libs = {};
     this.glslLibRoutineDependencyGraph = {};
     this.context = new GlslContext(glContext, programInfo);
+    const glslRegistry = {
+      'encoding':EncodingGlslLib,
+      'fragcolor': FragColorGlslLib,
+      'vec': VecGlslLib,
+      'shapeUtils': ShapeUtilsGlslLib,
+      'coordinates': CoordsGlslLib,
+    };
     // construct GlslLibs
     Object.keys(glslRegistry).forEach((name) => {
       const lib = new glslRegistry[name](this.context);

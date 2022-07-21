@@ -31,11 +31,11 @@ class Backend {
   }
   initGL() {
     this.webgl = new WebGL("webgl2")
-    for (let i = 1; i < 3; i++) {
+    for (let i = 1; i < this.layers.length; i++) {
       const l = this.layers[i]
       if (l.type.toUpperCase() == 'CONVOLUTIONAL') {
         const textures = [{ index: l.index, activation: l.activation, TextureID: "t" + (l.index - 1), activation: l.activation, pad: l.pad, size: l.size, shape: [l.batch, l.c, l.h, l.w] },
-        { batch: l.batch, filters: l.filters, size: l.size, weights: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
+        { batch: l.batch, filters: l.filters, size: l.size, output: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
         { output: l.biases, TextureID: 'bias' + l.index, shape: [l.filters] }]
         l.artifacts = []
         if (l.groups == 1) {
@@ -69,9 +69,9 @@ class Backend {
         let glProg;
         if (l.input_layers.length == 1) {
           textures.push({ groups: 0, TextureID: "t" + l.input_layers[0].index, shape: [l.input_layers[0].batch, l.out_c, l.input_layers[0].h, l.input_layers[0].w] })
-          glProg = WebGLRoute.createSplitProgramInfo(this.webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.out_c)
+          glProg = WebGLRoute.createSplitProgramInfo(this.webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.group_id * l.out_c)
         } else {
-          for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i].index, shape: [l.input_layers[i].batch, l.input_layers[i].c, l.input_layers[i].h, l.input_layers[i].w] })
+          for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i].index, shape: [l.input_layers[i].batch, l.input_layers[i].out_c, l.input_layers[i].out_h, l.input_layers[i].out_w] })
           glProg = WebGLRoute.createProgramInfo(this.webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w])
         }
         l.artifacts = [this.webgl.programManager.build(glProg)];
@@ -110,7 +110,7 @@ class Backend {
     this.layers[0].output = ImageProcess.resize_image(img, this.layers[0].w, this.layers[0].h, width, height, channels)
     this.webgl.initFirstTexture(this.layers[1].runData[0].inputTextureDatas[0], this.layers[0].output)
     console.time()
-    for (let i = 1; i < 3; ++i) {
+    for (let i = 1; i < this.layers.length; ++i) {
       if (this.layers[i].type.toUpperCase() == 'YOLO') {
         const len = this.layers[i - 1].runData.length
         this.layers[i].output = this.layers[i - 1].runData[len - 1].outputTextureData.gldata()
@@ -118,7 +118,7 @@ class Backend {
       }
       for (let j = 0; j < this.layers[i].artifacts.length; j++) {
         this.webgl.programManager.run(this.layers[i].artifacts[j], this.layers[i].runData[j]);
-        this.layers[i].output = this.layers[i].runData[j].outputTextureData.gldata()
+        //this.layers[i].output = this.layers[i].runData[j].outputTextureData.gldata()
       }
     }
     console.timeEnd()

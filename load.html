@@ -124,7 +124,7 @@
       const weights = new DataView(blb);
       const model = new Model()
       const layers = model.parse_network_cfg(fileContents, weights)
-      backend = new Backend(layers, true, false)
+      backend = new Backend(layers)
       backend.initWasm()
       //backend.initGL()
       await imageLoader.getImageData('./dog.jpg');
@@ -139,9 +139,9 @@
     try {
       console.log(loadWeight)
       // WasmBinding.getInstance().dispose()
-      //console.time();
+      console.time();
       await backend.start(imageLoader.pixels, 768, 576)
-     // console.timeEnd();
+      console.timeEnd();
       const img = new ImageProcess()
       const dets = img.get_network_boxes(backend.layers, 1, 1, 0.2, 0, 0);
       console.log(dets)

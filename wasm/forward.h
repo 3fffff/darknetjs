@@ -435,6 +435,15 @@ void convdw3x3s1(float *const &src, const int &inWidth, const int &inHeight, con
       for (; remain > 0; remain--)
       {
         float sum = bias0;
+        /*float kk00 = r0[0] * k0[0];
+        float kk01 = r0[1] * k0[1];
+        float kk02 = r0[2] * k0[2];
+        float kk10 = r1[0] * k1[0];
+        float kk11 = r1[1] * k1[1];
+        float kk12 = r1[2] * k1[2];
+        float kk20 = r2[0] * k2[0];
+        float kk21 = r2[1] * k2[1];
+        float kk22 = r2[2] * k2[2];*/
         sum += r0[0] * k0[0];
         sum += r0[1] * k0[1];
         sum += r0[2] * k0[2];

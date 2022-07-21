@@ -1,6 +1,6 @@
 "use strict";
 class WebGLRoute {
-  static createProgramInfo(handler, inputs, outputShape, groups = 1) {
+  static createProgramInfo(handler, inputs, outputShape, axis = 1) {
     const rank = outputShape.length;
     // in most cases linear search is sufficient, as in most scenarios, only 2 tensors are concatenated
     const getTextureIndexWhereDataResidesMethod = WebGLRoute.getTextureIndexWhereDataResidesLinearSearch(inputs.length);
@@ -12,10 +12,10 @@ class WebGLRoute {
       ${getValueFromArrayIndexMethod}
       ${getTextureIndexWhereDataResidesMethod}
       float process(int indices[${rank}]) {
-        int textureIndex = getTextureWhereDataResides (indices[${groups}]);
+        int textureIndex = getTextureWhereDataResides (indices[${axis}]);
 
         if(textureIndex != 0) {
-          indices[${groups}] = indices[${groups}] - int(getValueFromArrayIndex(sizeInConcatAxis, textureIndex-int(${groups})));
+          indices[${axis}] = indices[${axis}] - int(getValueFromArrayIndex(sizeInConcatAxis, textureIndex-int(${axis})));
         }
 
         return fetchDataFromCorrectTexture(textureIndex, indices);

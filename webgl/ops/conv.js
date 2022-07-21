@@ -11,7 +11,7 @@ class WebGLConv {
     let kTD = handler.getTextureData(textures[1].TextureID);
     if (!kTD) {
       console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
-      const newKernelData = WebGLConv.prepKernelForDotProduct(textures[1].shape, textures[1].groups, 4, textures[1].weights);
+      const newKernelData = WebGLConv.prepKernelForDotProduct(textures[1].shape, textures[1].groups, 4, textures[1].output);
       // hack: should use graph transformer to rewrite initializer K
       kTD = handler.createTextureDataFromLayoutBindTensor(glProg[1].inputLayouts[1], 'float32', newKernelData, textures[1]);
     }
@@ -102,10 +102,7 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
           x[1] = patchC;
           x[2] = xh2;
           x[3] = xw2;
-          if(xh2 >= 0 &&
-              xh2 < XH &&
-              xw2 >= 0 &&
-              xw2 < XW) {
+          if(xh2 >= 0 && xh2 < XH && xw2 >= 0 && xw2 < XW) {
             value[i] = _X(x);
           }
         }
@@ -192,7 +189,7 @@ function createGroupConvProgramInfo(handler, inputs, outputShape, activation, ba
   const processBias = hasBias ? `value += getBias(output_channel);` : ``;
   const xShape = inputs[0].shape;
   const wShape = inputs[1].shape;
-  const outputChannelsPerGroup = wShape[0] / inputs[1].groups;
+  wShape[0] /= inputs[1].groups;
   const glsl = getGlsl(handler.glContext.version);
   const samplers = hasBias ? ['X', 'W', 'Bias'] : ['X', 'W']
   const shaderSource = `
@@ -204,7 +201,7 @@ function createGroupConvProgramInfo(handler, inputs, outputShape, activation, ba
     int batch = coords.x;
     int output_channel = coords.y;
     ivec2 xRCCorner = coords.zw * strides - pads;
-    int group_id = output_channel / ${outputChannelsPerGroup};
+    int group_id = output_channel / ${wShape[0]};
     float value = 0.0;
     for (int wInChannel = 0; wInChannel < ${wShape[1]}; wInChannel++) {
       int input_channel = group_id * ${wShape[1]} + wInChannel;

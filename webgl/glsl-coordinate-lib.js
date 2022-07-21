@@ -8,7 +8,7 @@ class CoordsGlslLib extends GlslLib {
     super(context);
   }
   getFunctions() {
-    return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, this.offsetToCoords()), this.coordsToOffset()), this.toVec()), this.valueFrom()), this.GetCommonUtilFuncs()), this.getInputsSamplingSnippets(), this.getOutputSamplingSnippet());
+    return Object.assign({}, this.offsetToCoords(), this.coordsToOffset(), this.toVec(), this.valueFrom(), this.GetCommonUtilFuncs(), this.getInputsSamplingSnippets(), this.getOutputSamplingSnippet());
   }
   /**
    * Produces a function that can map from
@@ -160,7 +160,7 @@ class CoordsGlslLib extends GlslLib {
       return true;
     };
     if (inRank === outRank && arraysEqual(inTexShape, outTexShape)) {
-      const source_1 = "  float " + funcName + "() {    return sampleTexture(" + name + ", TexCoords);  }";
+      const source_1 = `float ${funcName} () {    return sampleTexture(${name},TexCoords);}`;
       return new GlslLibRoutine(source_1, ['coordinates.sampleTexture']);
     }
     const getBroadcastDims = function (inputShape, outputShape) {
@@ -195,7 +195,7 @@ class CoordsGlslLib extends GlslLib {
     else {
       unpackedCoordsSnippet = inputLayout.unpackedShape.map(function (s, i) { return "coords." + fields[i + rankDiff]; }).join(', ');
     }
-    const source = "float " + funcName + "() {  " + type + " coords = getOutputCoords();  " + coordsSnippet + "  return " + texFuncSnippet + "(" + unpackedCoordsSnippet + ");}";
+    const source = `float ${funcName} () { ${type} coords = getOutputCoords();  ${coordsSnippet} return ${texFuncSnippet} ( ${unpackedCoordsSnippet} );}`;
     return new GlslLibRoutine(source, ['coordinates.getOutputCoords']);
   };
   getOutputSamplingSnippet() {
@@ -203,11 +203,13 @@ class CoordsGlslLib extends GlslLib {
     return this.getUnpackedOutputSamplingSnippet(outputLayout);
   };
   generateShaderFuncNameFromInputSamplerName(samplerName) {
-    assert(typeof samplerName !== 'undefined' && samplerName.length !== 0, function () { return 'empty string found for sampler name'; });
+    if(typeof samplerName !== 'undefined' && samplerName.length === 0)
+      throw new Error('empty string found for sampler name'); 
     return 'get' + samplerName.charAt(0).toUpperCase() + samplerName.slice(1);
   }
   generateShaderFuncNameFromInputSamplerNameAtOutCoords(samplerName) {
-    assert(typeof samplerName !== 'undefined' && samplerName.length !== 0, function () { return 'empty string found for sampler name'; });
+    if(typeof samplerName !== 'undefined' && samplerName.length === 0)
+      throw new Error('empty string found for sampler name'); 
     return 'get' + samplerName.charAt(0).toUpperCase() + samplerName.slice(1) + 'AtOutCoords';
   }
   /**

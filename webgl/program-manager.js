@@ -10,7 +10,7 @@
  */
 class ProgramManager {
   constructor(glContext) {
-    this.debug = true
+    this.debug = false
     this.glContext = glContext;
     this.attributesBound = false;
   }
@@ -22,7 +22,6 @@ class ProgramManager {
     this.textureDataCache.set(tensorId, textureData);
   }
   run(buildArtifact, runData) {
-    // this.profiler.event('ProgramManager', 'ProgramManager.run', () => {
     const gl = this.glContext.gl;
     const program = buildArtifact.program;
     gl.useProgram(program);
@@ -35,11 +34,8 @@ class ProgramManager {
       console.log('ProgramManager', buildArtifact.programInfo.shaderSource);
       throw err;
     }
-    //this.profiler.event('ProgramManager', 'GlContext.draw()', () => {
     this.doDraw(buildArtifact, runData);
     gl.flush();
-    //});
-    // });
   }
   dispose() {
     if (this.vertexShader) this.glContext.deleteShader(this.vertexShader);
@@ -57,16 +53,10 @@ class ProgramManager {
       attribLocations: this.getAttribLocations(program)
     };
     return artifact;
-    //  });
   }
   doDraw(artifact, runData) {
-    if (runData.draw) {
-      if (this.debug) console.log('ProgramManager', 'Custom draw function');
-      runData.draw(this.glContext, artifact);
-    }
-    else {
-      this.glContext.draw();
-    }
+    if (runData.draw) runData.draw(this.glContext, artifact);
+    else this.glContext.draw();
   }
   compile(fragShaderScript) {
     if (!this.vertexShader) {

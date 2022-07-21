@@ -8,7 +8,7 @@ class EncodingGlslLib extends GlslLib {
     super(context);
   }
   getFunctions() {
-    return Object.assign(Object.assign({}, this.encodeFloat32()), this.decodeFloat32());
+    return Object.assign({}, this.encodeFloat32(), this.decodeFloat32());
   }
   encodeFloat32() {
     return {
