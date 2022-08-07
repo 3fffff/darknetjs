@@ -35,7 +35,7 @@ class WebGLSum {
     };
   }
   static createRunData(handler, textures, glProg, outTextureID) {
-    const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t.TextureID, glProg.inputLayouts[i]));
+    const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
     return [{
       inputTextureDatas: inputTDs,
       outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', "t" + outTextureID),

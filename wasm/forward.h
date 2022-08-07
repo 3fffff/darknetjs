@@ -26,10 +26,11 @@ extern "C"
                   const int32_t, const int32_t);
   void connected_imp(float *, int *, float *, int *, float *, int *, float *, int, float *, float *, float *);
   void matmul(float *, float *, float *, const int32_t, const int32_t, const int32_t);
-  void convdw3x3s1(float *const &, const int &, const int &, const int &, float *const &,
+ /* void convdw3x3s1(float *const &, const int &, const int &, const int &, float *const &,
                    float *&, const int &, const int &, const int &, float *const &);
   void convdw3x3s2(float *const &, const int &, const int &, const int &, float *const &,
-                   float *&, const int &, const int &, const int &, float *const &);
+                   float *&, const int &, const int &, const int &, float *const &);*/
+  void reorder_a_4(const float * , int , int , int , float *);
   void pool2D_f32_imp(float *, int *, float *, int *, int, int *, int *, bool);
   float *activate(float *, const int, const int);
   void add_bias(float *, const float *, const int32_t, const int32_t, float *, float *, float *);
@@ -75,27 +76,25 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
   const int kernel_dim = input_channels / groups * filter_height * filter_width;
   const int col_buffer_size = kernel_dim * output_image_size;
   const int out_size = output_height * output_width;
-  float *col_buffer_data = new float[col_buffer_size];
-
+  
   for (int n = 0; n < input_num; ++n)
   {
     /*if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s1(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
-      delete[] col_buffer_data;
       return;
     }
-    else */
+    else 
     if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s2(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
       Y = activate(Y, output_size, active);
-      delete[] col_buffer_data;
       return;
     }
     else
-    {
+    {*/
+      float *col_buffer_data = new float[col_buffer_size];
       for (int group = 0; group < groups; ++group)
       {
         im2col_f32(X + X_offset * group, col_buffer_data, input_channels / groups, input_height,
@@ -104,12 +103,12 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
                    strides[1]);
         matmul(W + W_offset * group, col_buffer_data, Y + Y_offset * group, filter_num / groups, output_height * output_width, kernel_dim);
       }
-    }
+      delete[] col_buffer_data;
+      if (bias != nullptr)
+        add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
+      Y = activate(Y, output_size, active);
+   // }
   }
-  if (bias != nullptr)
-    add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
-  Y = activate(Y, output_size, active);
-  delete[] col_buffer_data;
 }
 
 void convTranspose2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape,
@@ -222,7 +221,7 @@ void connected_imp(float *X, int *X_shape, float *W, int *W_shape,
 }
 
 void pool2D_f32_imp(float *X, int *X_shape, float *Y,
-                    int *Y_shape, int size, int *pads, int *strides, bool ave)
+                    int *Y_shape, int size, int *pads, int *strides, int type)
 {
   int batch_size = X_shape[0];
   int channels = X_shape[1];
@@ -244,21 +243,25 @@ void pool2D_f32_imp(float *X, int *X_shape, float *Y,
         hstart = std::max(hstart, 0);
         for (int pw = 0; pw < pooled_width; ++pw)
         {
-          int wstart = pw * stride_w - pads[1];
-          int wend = std::min(wstart + size, width);
-          wstart = std::max(wstart, 0);
           const int pool_index = ph * pooled_width + pw;
-          float Yh = ave ? 0 : std::numeric_limits<float>::lowest();
-          for (int h = hstart; h < hend; ++h)
-          {
-            for (int w = wstart; w < wend; ++w)
+          if (type == 3) {
+              for (let i = 0; i < height*width; ++i) Y[pool_index] += (X[ph + height*width * (c + n * channels)]) / (height*width);
+          }else{ 
+            int wstart = pw * stride_w - pads[1];
+            int wend = std::min(wstart + size, width);
+            wstart = std::max(wstart, 0);
+            float Yh = type == 2 ? 0 : std::numeric_limits<float>::lowest();
+            for (int h = hstart; h < hend; ++h)
             {
-              const int input_index = h * width + w;
-              Yh = ave ? Yh + X[input_index] : (X[input_index] > Yh ? X[input_index] : Yh);
+              for (int w = wstart; w < wend; ++w)
+              {
+                const int input_index = h * width + w;
+                Yh = type == 2 ? Yh + X[input_index] : (X[input_index] > Yh ? X[input_index] : Yh);
+              }
             }
+            Yh = type == 2 ? Yh / (hend - hstart) * (wend - wstart) : Yh;
+            Y[pool_index] = Yh;
           }
-          Yh = ave ? Yh / (hend - hstart) * (wend - wstart) : Yh;
-          Y[pool_index] = Yh;
         }
       }
       // Do offset.
@@ -319,17 +322,49 @@ float *activate(float *x, const int length, const int a)
   }
   return x;
 }
+
+void macro(int M, int N, int K, const float * A, 
+    const float * B, int ldb, float * bufB, bool reorderB, float * C, int ldc)
+{
+    for (int j = 0; j < N; j += 8)
+    {
+        if(reorderB)
+            reorder_b_8(K, B + j, ldb, bufB + K*j);
+        for (int i = 0; i < M; i += 4)
+            micro_4x8(K, A + i*K, 1, 4, bufB + K*j, 8, C + i*ldc + j, ldc);
+    }
+}
+
 void matmul(float *A, float *B, float *C, const int M, const int N, const int K)
 {
   const int alignedN = N - N % 8;
   const int alignedM = M - M % 4;
-  for (int j = 0; j < alignedN; j += 8)
+  const int alignedK = K - K % 4;
+  const int L1 = 32 * 1024, L2 = 256*1024, L3 = 2*1024*1024;
+  int mK = std::min(L1 / 4 / 4, alignedK) / 4 * 4;
+  int mM = std::min(L2 / 4 / mK, alignedM) / 4 * 4;
+  int mN = std::min(L3 / 4 / mK, alignedN) / 8 * 8;
+  buf_t bufB(mN * mK);
+  buf_t bufA(mK * mM);
+  for (int j = 0; j < alignedN; j += mN)
   {
-    buf_t bufB(8 * K);
-    reorder_b_8(K, B + j, N, bufB.p);
-    for (int i = 0; i < alignedM; i += 4)
-      micro4x8(K, A + i * K, K, bufB.p, 8, C + i * N + j, N);
+    int dN = std::min(alignedN, j + mN) - j;
+    for (int k = 0; k < alignedK; k += mK)
+    {
+      int dK = std::min(alignedK, k + mK) - k;
+      for (int i = 0; i < alignedM; i += mM)
+      {
+        int dM = std::min(alignedM, i + mM) - i;
+        reorder_a_4(A + i * K + k, K, dM, dK, bufA.p);
+        macro(dM, dN, dK, bufA.p, B + k * N + j, N, 
+                  bufB.p, i == 0, C + i * N + j, N);
+      }
+    }
   }
+  for (int j = 0; j < N; ++j)
+    for (int i = 0; i < M; ++i)
+      for (int k = alignedK; k < K; ++k)
+        C[i * N + j] += A[i * K + k] * B[k * N + j];
   for (int j = 0; j < N; ++j)
     for (int i = alignedM; i < M; ++i)
       for (int k = 0; k < K; ++k)
@@ -346,6 +381,7 @@ void matmul(float *A, float *B, float *C, const int M, const int N, const int K)
     }
   }
 }
+
 void micro4x8(size_t K, const float *A, size_t lda, const float *B, size_t ldb, float *C, size_t ldc)
 {
   v128_t c00 = wasm_f32x4_const(0, 0, 0, 0);
@@ -401,173 +437,28 @@ void reorder_b_8(int K, const float *B, int ldb, float *bufB)
     wasm_v128_store(bufB + 4, wasm_v128_load(B + 4));
   }
 }
-void convdw3x3s1(float *const &src, const int &inWidth, const int &inHeight, const int &inChannel, float *const &kernel,
-                 float *&dest, const int &outWidth, const int &outHeight, const int &outChannel, float *const &bias)
+
+void reorder_a_4(const float * A, int lda, int M, int K, float * bufA)
 {
-  const int in_size = inWidth * inHeight;
-  const int out_size = outWidth * outHeight;
-  const int group = inChannel;
-  for (int g = 0; g < group; g++)
+  for (int i = 0; i < M; i += 4)
   {
-    float *dest0 = dest + g * out_size;
-    const float *kernel0 = kernel + g * 9;
-
-    float *outptr = dest0;
-    float *outptr2 = outptr + outWidth;
-
-    const float *src0 = src + g * in_size;
-
-    const float *r0 = src0;
-    const float *r1 = src0 + inWidth;
-    const float *r2 = src0 + inWidth * 2;
-    const float *r3 = src0 + inWidth * 3;
-
-    const float *k0 = kernel0;
-    const float *k1 = kernel0 + 3;
-    const float *k2 = kernel0 + 6;
-    const float bias0 = bias ? bias[g] : 0.f;
-    int i = 0;
-
-    for (; i + 1 < outHeight; i += 2)
+    for (int k = 0; k < K; k += 4)
     {
-      int remain = outWidth;
-
-      for (; remain > 0; remain--)
-      {
-        float sum = bias0;
-        /*float kk00 = r0[0] * k0[0];
-        float kk01 = r0[1] * k0[1];
-        float kk02 = r0[2] * k0[2];
-        float kk10 = r1[0] * k1[0];
-        float kk11 = r1[1] * k1[1];
-        float kk12 = r1[2] * k1[2];
-        float kk20 = r2[0] * k2[0];
-        float kk21 = r2[1] * k2[1];
-        float kk22 = r2[2] * k2[2];*/
-        sum += r0[0] * k0[0];
-        sum += r0[1] * k0[1];
-        sum += r0[2] * k0[2];
-        sum += r1[0] * k1[0];
-        sum += r1[1] * k1[1];
-        sum += r1[2] * k1[2];
-        sum += r2[0] * k2[0];
-        sum += r2[1] * k2[1];
-        sum += r2[2] * k2[2];
-
-        float sum2 = bias0;
-        sum2 += r1[0] * k0[0];
-        sum2 += r1[1] * k0[1];
-        sum2 += r1[2] * k0[2];
-        sum2 += r2[0] * k1[0];
-        sum2 += r2[1] * k1[1];
-        sum2 += r2[2] * k1[2];
-        sum2 += r3[0] * k2[0];
-        sum2 += r3[1] * k2[1];
-        sum2 += r3[2] * k2[2];
-
-        *outptr = sum;
-        *outptr2 = sum2;
-
-        r0++;
-        r1++;
-        r2++;
-        r3++;
-        outptr++;
-        outptr2++;
-      }
-
-      r0 += 2 + inWidth;
-      r1 += 2 + inWidth;
-      r2 += 2 + inWidth;
-      r3 += 2 + inWidth;
-
-      outptr += outWidth;
-      outptr2 += outWidth;
+      const float * pA = A + k;
+      v128_t s0 = wasm_v128_load(pA + 0 * stride);
+      v128_t s1 = wasm_v128_load(pA + 1 * stride);
+      v128_t s2 = wasm_v128_load(pA + 2 * stride);
+      v128_t s3 = wasm_v128_load(pA + 3 * stride);
+      const v128_t s00 = wasm_v32x4_shuffle(s0, s1, 0, 4, 1, 5);
+	    const v128_t s01 = wasm_v32x4_shuffle(s2, s3, 0, 4, 1, 5);
+	    const v128_t s10 = wasm_v32x4_shuffle(s0, s1, 2, 6, 3, 7);
+	    const v128_t s11 = wasm_v32x4_shuffle(s2, s3, 2, 6, 3, 7);
+      wasm_v128_store(bufA + 0, wasm_v32x4_shuffle(s00, s01, 0, 1, 4, 5));
+      wasm_v128_store(bufA + 4, wasm_v32x4_shuffle(s00, s01, 2, 3, 6, 7));
+      wasm_v128_store(bufA + 8, wasm_v32x4_shuffle(s10, s11, 0, 1, 4, 5));
+      wasm_v128_store(bufA + 12, wasm_v32x4_shuffle(s10, s11, 2, 3, 6, 7));
+      bufA += 16;
     }
-
-    for (; i < outHeight; i++)
-    {
-      int remain = outWidth;
-
-      for (; remain > 0; remain--)
-      {
-        float sum = bias0;
-        sum += r0[0] * k0[0];
-        sum += r0[1] * k0[1];
-        sum += r0[2] * k0[2];
-        sum += r1[0] * k1[0];
-        sum += r1[1] * k1[1];
-        sum += r1[2] * k1[2];
-        sum += r2[0] * k2[0];
-        sum += r2[1] * k2[1];
-        sum += r2[2] * k2[2];
-
-        *outptr = sum;
-
-        r0++;
-        r1++;
-        r2++;
-        outptr++;
-      }
-
-      r0 += 2;
-      r1 += 2;
-      r2 += 2;
-    }
-  }
-}
-void convdw3x3s2(float *const &src, const int &inWidth, const int &inHeight, const int &inChannel, float *const &kernel,
-                 float *&dest, const int &outWidth, const int &outHeight, const int &outChannel, float *const &bias)
-{
-  const int in_size = inWidth * inHeight;
-  const int out_size = outWidth * outHeight;
-  const int group = inChannel;
-  for (int g = 0; g < group; g++)
-  {
-    float *dest0 = dest + g * out_size;
-    const float *kernel0 = kernel + g * 9;
-
-    float *destptr0 = dest0;
-
-    const float *src0 = src + g * in_size;
-
-    const float *r0 = src0;
-    const float *r1 = src0 + inWidth;
-    const float *r2 = src0 + inWidth * 2;
-    const float *r3 = src0 + inWidth * 3;
-
-    const float *k0 = kernel0;
-    const float *k1 = kernel0 + 3;
-    const float *k2 = kernel0 + 6;
-    const float bias0 = bias ? bias[g] : 0.f;
-
-    int i = 0;
-
-    for (; i < outHeight; i++)
-    {
-      int remain = outWidth;
-      for (; remain > 0; remain--)
-      {
-        float sum1 = bias0;
-        sum1 += r0[0] * k0[0];
-        sum1 += r0[1] * k0[1];
-        sum1 += r0[2] * k0[2];
-        sum1 += r1[0] * k1[0];
-        sum1 += r1[1] * k1[1];
-        sum1 += r1[2] * k1[2];
-        sum1 += r2[0] * k2[0];
-        sum1 += r2[1] * k2[1];
-        sum1 += r2[2] * k2[2];
-
-        *destptr0 = sum1;
-        r0 += 2;
-        r1 += 2;
-        r2 += 2;
-        destptr0++;
-      }
-      r0 += 2 * (inWidth - outWidth);
-      r1 += 2 * (inWidth - outWidth);
-      r2 += 2 * (inWidth - outWidth);
-    }
+    A += 4 * lda;
   }
 }

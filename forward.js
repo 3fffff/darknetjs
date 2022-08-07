@@ -94,6 +94,34 @@ class Forward {
     }
     Forward.BatchActivate(l, out_size)
   }
+
+  static convolutional_layer_q(layers) {
+    const l = this
+    const input = l.index - 1 == 0 ? layers[l.index - 1].output : new Int8Array(layers[l.index - 1].output.length)
+    if (l.index - 1 != 0) {
+      for (let i = 0; i < layers[l.index - 1].output.length; ++i) {
+        const src = layers[l.index - 1].output[i] * l.input_quant_multipler;
+        input[i] = Math.max(Math.abs(src), 127);
+      }
+    }
+    const kernel_dim = l.size * l.size * l.c / l.groups;
+    const out_wh = l.out_h * l.out_w;
+
+    const col_buffer_data = new Int8Array(kernel_dim * l.out_h * l.out_w);
+    const x_offset = l.c * l.h * l.w / l.groups;
+    const y_offset = l.out_w * l.out_h * l.out_c / l.groups;
+    const w_offset = l.filters * kernel_dim / l.groups;
+    const output_q = new Int32Array(l.output.length)
+    for (let b = 0; b < l.batch; ++b) {
+      for (let group = 0; group < l.groups; ++group) {
+        Forward.im2col(input.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
+        Forward.matmul(l.weights_quant.subarray(w_offset * group), col_buffer_data, output_q.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
+      }
+    }
+    for (let i = 0; i < l.outputs; ++i) l.output[i] = output_q[i] * l.ALPHA1;
+    Forward.BatchActivate(l, out_size)
+  }
+
   static deconvolutional_layer(layers) {
     const l = this
     const input = layers[l.index - 1].output
@@ -127,9 +155,7 @@ class Forward {
         for (let i = 0; i < l.out_h; ++i) {
           for (let j = 0; j < l.out_w; ++j) {
             const out_index = j + l.out_w * (i + l.out_h * (k + l.c * b));
-            let avg = 0;
-            let counter = 0;
-            let valid = false
+            let avg = 0, counter = 0, valid = false
             if (l.type == 'AVGPOOL') {
               for (let i = 0; i < l.h * l.w; ++i) l.output[out_index] += (input[i + l.h * l.w * (k + b * l.c)]) / (l.h * l.w);
             } else {

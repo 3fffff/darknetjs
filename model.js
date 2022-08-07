@@ -20,7 +20,7 @@ class Model {
     options.channels = layer.out_c
   }
 
-  parse_convolutional(options, param) {
+  parse_convolutional(options, param, quant, wasmSupport) {
     const size = this.option_find_int(options, 'size', 1);
     const filters = this.option_find_int(options, 'filters', 1);
     const pad = this.option_find_int(options, 'pad', 0);
@@ -56,7 +56,8 @@ class Model {
     l.inputs = l.w * l.h * l.c;
 
     l.output = new Float32Array(l.batch * l.outputs);
-    l.forward = Forward.convolutional_layer
+
+    l.forward = wasmSupport ? WasmConv : Forward.convolutional_layer
     if (l.batch_normalize != 0) {
       l.scales = new Float32Array(filters);
       for (let i = 0; i < filters; ++i)l.scales[i] = 1;
@@ -119,7 +120,7 @@ class Model {
     return l;
   }
 
-  parse_maxpool(options, param) {
+  parse_maxpool(options, param, wasmSupport) {
     const stride = this.option_find_int(options, "stride", 1);
     const size = this.option_find_int(options, "size", stride);
     const padding = Math.floor(this.option_find_int(options, "padding", (size - 1)));
@@ -143,7 +144,7 @@ class Model {
     l.stride_x = stride_x;
     l.stride_y = stride_y
     l.output = new Float32Array(l.out_h * l.out_w * l.out_c * l.batch);
-    l.forward = Forward.pool_layer
+    l.forward = wasmSupport ? WasmPool : Forward.pool_layer
     this.options_from_layer(options, l)
     return l;
   }
@@ -482,8 +483,8 @@ class Model {
     }
     return sections;
   }
-  load_weights_upto_cpu(layers, data, merge) {
-    let offset = 0
+  load_weights_upto_cpu(layers, data, merge, quant) {
+    let offset = 0, counter = 0
     const major = data.getInt32(offset, true);
     offset += 4
     const minor = data.getInt32(offset, true);
@@ -511,11 +512,62 @@ class Model {
           l.scales = null; l.mean = null; l.variance = null;
           l.batch_normalize = 0;
         }
+
+        if (l.type === "CONVOLUTIONAL" && l.batch_normalize === 0 && quant) {
+          l.input_quant_multipler = (counter < layers[0].input_calibration.length) ? layers[0].input_calibration[counter] : 40;
+          counter++;
+          l.weights_quant_multipler = this.get_multiplier(l.weights, 8) / 4;    // good [2 - 8], best 4
+          l.weights_quant = new Int8Array(l.weights.length)
+          l.biases_quant = new Int8Array(l.biases.length)
+          const num = l.c / l.groups * l.size * l.size;
+          for (let fil = 0; fil < num; ++fil) {
+            for (let i = 0; i < l.filters; ++i) {
+              const w = l.weights[fil * l.filters + i] * l.weights_quant_multipler;
+              l.weights_quant[fil * l.filters + i] = Math.max(Math.abs(w), 127);
+            }
+          }
+          const R_MULT = 32
+          l.output_multipler = l.input_quant_multipler / (l.weights_quant_multipler * l.input_quant_multipler / R_MULT);
+          l.ALPHA1 = 1 / (l.input_quant_multipler * l.weights_quant_multipler);
+          for (let fil = 0; fil < num; ++fil) {
+            const biases_multipler = l.output_multipler * l.weights_quant_multipler * l.input_quant_multipler / R_MULT;
+            l.biases_quant[fil] = l.biases[fil] * biases_multipler;
+          }
+        }
       }
     }
   }
 
-  parse_network_cfg(filename, weights) {
+  get_multiplier(arr, bits_length) {
+    const number_of_ranges = 32;
+    const start_range = 1 / 65536;
+    //distribution
+    const count = new Int16Array(number_of_ranges);
+    for (let i = 0; i < arr.length; ++i) {
+      let cur_range = start_range;
+      for (let j = 0; j < number_of_ranges; ++j) {
+        if (Math.abs(cur_range) <= arr[i] && arr[i] < Math.abs(cur_range * 2))
+          count[j]++;
+        cur_range *= 2;
+      }
+    }
+
+    let max_count_range = 0;
+    let index_max_count = 0;
+    for (let j = 0; j < number_of_ranges; ++j) {
+      let counter = 0;
+      for (let i = j; i < (j + bits_length) && i < number_of_ranges; ++i)
+        counter += count[i];
+      if (max_count_range < counter) {
+        max_count_range = counter;
+        index_max_count = j;
+      }
+    }
+    let multiplier = 1 / (start_range * Math.pow(2.0, index_max_count));
+    return multiplier;
+  }
+
+  parse_network_cfg(filename, weights, quant, wasm, webgl) {
     let sections = this.read_cfg(filename);
     const layers = [];
     if (sections[0].type == "[net]" && sections[0].type == "[network]") throw new Error("First section must be [net] or [network]");
@@ -524,16 +576,24 @@ class Model {
     net.h = this.option_find_int(sections[0].options, "height", 1);
     net.c = this.option_find_int(sections[0].options, "channels", 1);
     net.batch = 1;
+    net.quant = quant
+    net.wasmSupport = wasm
+    if (quant) {
+      const input_calibration = sections[0].options.input_calibration.split(',')
+      net.input_calibration = new Float32Array(input_calibration.length)
+      for (let i = 0; i < input_calibration.length; i++)
+        net.input_calibration[i] = parseFloat(input_calibration[i])
+    }
     layers.push(net)
     for (let i = 1; i < sections.length; i++) {
       let l = {};
       sections[i].options.index = i
       sections[i].options.batch = net.batch
-      if (sections[i].type.toUpperCase() == 'CONVOLUTIONAL') l = this.parse_convolutional(sections[i].options, sections[i - 1].options);
+      if (sections[i].type.toUpperCase() == 'CONVOLUTIONAL') l = this.parse_convolutional(sections[i].options, sections[i - 1].options, net.quant, net.wasmSupport);
       else if (sections[i].type.toUpperCase() == 'DECONVOLUTIONAL') l = this.parse_deconvolutional(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'CONNECTED') l = this.parse_connected(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'SOFTMAX') l = this.parse_softmax(sections[i].options, sections[i - 1].options);
-      else if (sections[i].type.toUpperCase() == 'MAXPOOL') l = this.parse_maxpool(sections[i].options, sections[i - 1].options);
+      else if (sections[i].type.toUpperCase() == 'MAXPOOL') l = this.parse_maxpool(sections[i].options, sections[i - 1].options, net.wasmSupport);
       else if (sections[i].type.toUpperCase() == 'AVGPOOL') l = this.parse_avgpool(sections[i].options, sections[i - 1].options);
       else if (sections[i].type.toUpperCase() == 'ROUTE') l = this.parse_route(sections[i].options, layers);
       else if (sections[i].type.toUpperCase() == 'YOLO') l = this.parse_yolo(sections[i].options, sections[i - 1].options);
@@ -549,8 +609,88 @@ class Model {
       if (!l.type) continue
       layers.push(l);
     }
-    this.load_weights_upto_cpu(layers, weights, 1)
+    this.load_weights_upto_cpu(layers, weights, 1, net.quant)
+    if (webgl) this.initGL(layers)
     console.log(layers)
     return layers
+  }
+  initGL(layers) {
+    const webgl = new WebGL("webgl2")
+    layers[0].webgl = webgl
+    for (let i = 1; i < layers.length; i++) {
+      const l = layers[i]
+      if (l.type.toUpperCase() == 'CONVOLUTIONAL') {
+        const textures = [{ index: l.index, activation: l.activation, TextureID: "t" + (l.index - 1), activation: l.activation, pad: l.pad, size: l.size, shape: [l.batch, l.c, l.h, l.w] },
+        { batch: l.batch, filters: l.filters, size: l.size, output: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
+        { output: l.biases, TextureID: 'bias' + l.index, shape: [l.filters] }]
+        l.artifacts = []
+        if (l.groups == 1) {
+          const glProg = WebGLConv.createProgramInfos(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.activation)
+          l.artifacts.push(webgl.programManager.build(glProg[0]));
+          l.artifacts.push(webgl.programManager.build(glProg[1]));
+          if (glProg[2]) l.artifacts.push(webgl.programManager.build(glProg[2]));
+          l.runData = WebGLConv.createRunDatas(webgl, textures, glProg, l.index, l.activation)
+        }
+        else {
+          const glProg = WebGLGroupConv.createProgramInfos(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.activation)
+          l.artifacts.push(webgl.programManager.build(glProg[0]));
+          if (glProg[1]) l.artifacts.push(webgl.programManager.build(glProg[1]));
+          l.runData = WebGLGroupConv.createRunDatas(webgl, textures, glProg, l.index, l.activation)
+        }
+      }
+      else if (l.type.toUpperCase() == 'MAXPOOL' || l.type.toUpperCase() == 'LOCALAVG' || l.type.toUpperCase() == 'AVGPOOL') {
+        const textures = [{ TextureID: "t" + (l.index - 1), pad: l.pad, size: l.size, stride_x: l.stride_x, stride_y: l.stride_x, shape: [l.batch, l.c, l.h, l.w] }]
+        const glProg = WebGLPool.createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w], l.type)
+        l.artifacts = [webgl.programManager.build(glProg)]
+        l.runData = WebGLPool.createRunData(webgl, textures, glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'UPSAMPLE') {
+        const textures = [{ TextureID: "t" + (l.index - 1), scale: 1, stride: l.stride, shape: [l.batch, l.c, l.h, l.w] }]
+        const glProg = WebGLUpsample.createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w])
+        l.artifacts = [webgl.programManager.build(glProg)];
+        l.runData = WebGLUpsample.createRunData(webgl, textures[0], glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'ROUTE') {
+        const textures = []
+        let glProg;
+        if (l.input_layers.length == 1) {
+          textures.push({ groups: 0, TextureID: "t" + l.input_layers[0].index, shape: [l.input_layers[0].batch, l.out_c, l.input_layers[0].h, l.input_layers[0].w] })
+          glProg = WebGLRoute.createSplitProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.group_id * l.out_c)
+        } else {
+          for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i].index, shape: [l.input_layers[i].batch, l.input_layers[i].out_c, l.input_layers[i].out_h, l.input_layers[i].out_w] })
+          glProg = WebGLRoute.createProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w])
+        }
+        l.artifacts = [webgl.programManager.build(glProg)];
+        l.runData = WebGLRoute.createRunData(webgl, textures, glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'CONNECTED') {
+        const textures = [{ TextureID: "tw" + l.index, shape: [l.weights.length, 1], output: l.weights }, { TextureID: "t" + (l.index - 1), shape: [1, l.weights.length] }]
+        const glProg = WebGLMatMul.createProgramInfo(webgl, l)
+        l.artifacts = [webgl.programManager.build(glProg)];
+        l.runData = WebGLMatMul.createRunData(webgl, textures, glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'SHORTCUT' || l.type.toUpperCase() == 'SAM') {
+        const textures = [{ TextureID: "t" + (l.index - 1), shape: [l.batch, l.c, l.h, l.w] }, { TextureID: "t" + l.indexs, shape: [l.batch, l.c, l.h, l.w] }]
+        const glProg = WebGLSum.createProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.type.toUpperCase())
+        l.artifacts = [webgl.programManager.build(glProg)];
+        l.runData = WebGLSum.createRunData(webgl, textures, glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'SCALE_CHANNELS') {
+        const textures = [{ TextureID: "t" + (l.index - 1), shape: [l.batch, l.c, l.h, l.w] }, { TextureID: "t" + l.indexs, shape: [l.batch, l.c, l.h, l.w] }]
+        const glProg = WebGLSum.createScaleChannelsProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.type.toUpperCase())
+        l.artifacts = [webgl.programManager.build(glProg)];
+        l.runData = WebGLSum.createRunData(webgl, textures, glProg, l.index)
+      }
+      else if (l.type.toUpperCase() == 'DROPOUT') {
+        l.artifacts = layers[i - 1].artifacts
+        l.runData = layers[i - 1].runData
+        layers[0].webgl.setTextureData("t"+l.index, l.runData[l.runData.length - 1].outputTextureData);
+      }
+      else if (l.type.toUpperCase() == 'YOLO') {
+        l.forwardGl = forwardWebglYolo
+        continue
+      }
+      l.forwardGl = forwardWebgl
+    }
   }
 }

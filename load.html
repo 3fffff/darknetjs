@@ -37,11 +37,31 @@
 <script src="ImageProcess.js"></script>
 <script src="forward.js"></script>
 <script src="model.js"></script>
-<script src="backend.js"></script>
 <script>
-  const imageLoader = new ImageLoader(768, 576);
+  const imageLoader = new ImageLoader(768, 576, false);
   var loadWeight = false
-  var backend = null
+  var loadModel = null
+  const wasmSupport = wasmcheck.support()
+  const Simd = wasmcheck.feature.simd
+  const thread = wasmcheck.feature.threads
+  if (!wasmSupport) console.log("wasm is not supported");
+  if (!Simd) console.log("simd is not supported")
+  if (wasmSupport && thread) {
+    initWorkers(3).then(
+      () => {
+        WasmBinding.getInstance();
+        postMessage({ type: 'init-success' });
+      },
+    );
+  }
+  else if (wasmSupport && !thread) {
+    initWorkers(0).then(
+      () => {
+        WasmBinding.getInstance();
+        postMessage({ type: 'init-success' });
+      },
+    );
+  }
   function abortRead() {
     //  reader.abort();
   }
@@ -123,10 +143,7 @@
       const blb = await readUploadedBlob(blob)
       const weights = new DataView(blb);
       const model = new Model()
-      const layers = model.parse_network_cfg(fileContents, weights)
-      backend = new Backend(layers)
-      backend.initWasm()
-      //backend.initGL()
+      loadModel = model.parse_network_cfg(fileContents, weights, false, false, true)
       await imageLoader.getImageData('./dog.jpg');
       document.getElementById("file-content").appendChild(imageLoader.canvas)
     } catch (e) {
@@ -138,12 +155,11 @@
     const fileContentDiv = document.querySelector('div#file-content');
     try {
       console.log(loadWeight)
-      // WasmBinding.getInstance().dispose()
-      console.time();
-      await backend.start(imageLoader.pixels, 768, 576)
-      console.timeEnd();
+      //console.time();
+      await start(imageLoader.pixels, 768, 576,3,true)
+      // console.timeEnd();
       const img = new ImageProcess()
-      const dets = img.get_network_boxes(backend.layers, 1, 1, 0.2, 0, 0);
+      const dets = img.get_network_boxes(loadModel, 1, 1, 0.2, 0, 0);
       console.log(dets)
       const ctx = imageLoader.context
       ctx.beginPath();
@@ -160,12 +176,23 @@
   const handleDispose = async event => {
     const fileContentDiv = document.querySelector('div#file-content');
     try {
-      backend.layers = []
+      loadModel = []
     } catch (e) {
       console.log(e)
       fileContentDiv.innerHTML = e.message;
     }
   };
+  async function start(img, width, height, channels = 3, webgl) {
+    loadModel[0].output = ImageProcess.resize_image(img, loadModel[0].w, loadModel[0].h, width, height, channels, loadModel[0].quant)
+    //for(let i=0;i<loadModel[0].output.length;i++)loadModel[0].output[i] = 0
+    console.time()
+    if (!webgl) for (let i = 1; i < loadModel.length; ++i)await loadModel[i].forward(loadModel)
+    else {
+      loadModel[0].webgl.initFirstTexture(loadModel[1].runData[0].inputTextureDatas[0], loadModel[0].output)
+      for (let i = 1; i < loadModel.length; ++i)loadModel[i].forwardGl(loadModel)
+    }
+    console.timeEnd()
+  }
   document.querySelector('input#primary-file-upload').addEventListener('change', handleUploadWeight);
   document.getElementById('start').addEventListener('click', handleSt);
   document.getElementById('dispose').addEventListener('click', handleDispose);

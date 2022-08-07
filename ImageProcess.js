@@ -1,9 +1,10 @@
 class ImageLoader {
-  constructor(imageWidth, imageHeight) {
+  constructor(imageWidth, imageHeight, quant) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = imageWidth;
     this.canvas.height = imageHeight;
     this.ctx = this.canvas.getContext('2d');
+    this.quant = quant
   }
   loadImage(url) {
     return new Promise((resolve, reject) => {
@@ -17,17 +18,16 @@ class ImageLoader {
     const img = await this.loadImage(url);
     this.ctx.drawImage(img, 0, 0)
     const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    this.pixels = ImageProcess.preprocess(imageData.data, 768, 576, [0, 0, 0], [0, 1, 2], 1 / 255, false);
-    //return imageData;
+    this.pixels = ImageProcess.preprocess(imageData.data, 768, 576, this.quant ? [127, 127, 127] : [0, 0, 0], [0, 1, 2], this.quant ? 1 : 1 / 255, false, this.quant);
   }
-  get context(){
+  get context() {
     return this.ctx
   }
 }
 
 class ImageProcess {
-  static preprocess(data, width, height, mean = [0, 0, 0], c = [2, 1, 0], scale = 1, inv = false) {
-    const vol = new Float32Array(width * height * 3);
+  static preprocess(data, width, height, mean = [0, 0, 0], c = [2, 1, 0], scale = 1, inv = false, quant) {
+    const vol = quant ? new Int8Array(width * height * 3) : new Float32Array(width * height * 3);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const pp = (y * width + x) * 4;
@@ -35,7 +35,7 @@ class ImageProcess {
         for (let i = 0; i < 3; i++)vol[pd + i] = (((inv ? 255 - data[pp + c[i]] : data[pp + c[i]]) - mean[c[i]]) * scale);
       }
     }
-    const channels = 3, res = new Float32Array(width * height * channels);
+    const channels = 3, res = quant ? new Int8Array(width * height * 3) : new Float32Array(width * height * channels);
     for (let k = 0; k < channels; ++k)
       for (let j = 0; j < height; ++j)
         for (let i = 0; i < width; ++i)
@@ -136,8 +136,8 @@ class ImageProcess {
   static add_pixel(m, x, y, c, val, w, h) {
     m[c * h * w + y * w + x] += val;
   }
-  static resize_image(im, w, h, wi, hi, ci) {
-    let resized = new Float32Array(Math.ceil(w * h * ci));
+  static resize_image(im, w, h, wi, hi, ci, quant) {
+    let resized = quant ? new Int8Array(Math.ceil(w * h * ci)) : new Float32Array(Math.ceil(w * h * ci));
     let part = new Array(w * hi * ci);
     let w_scale = (wi - 1) / (w - 1);
     let h_scale = (hi - 1) / (h - 1);
