@@ -1,7 +1,6 @@
 class Backward {
   static convolutional_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1].delta
     const kernel_dim = l.size * l.size * l.c / l.groups;
     const out_wh = l.out_h * l.out_w;
 
@@ -16,8 +15,8 @@ class Backward {
       for (let j = 0; j < l.groups; ++j) {
         Forward.im2col(input.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
         Forward.matmul(l.weights.subarray(w_offset * group), col_buffer_data, l.output.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
-        if (delta) {
-          Forward.im2col(delta.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
+        if (layers[l.index - 1].delta) {
+          Forward.im2col(layers[l.index - 1].delta.subarray(x_offset * group), col_buffer_data, l.c / l.groups, l.h, l.w, l.size, l.size, l.dilation, l.dilation, l.pad, l.pad, l.pad, l.pad, l.stride_y, l.stride_x);
           Forward.matmul(l.weights.subarray(w_offset * group), col_buffer_data, l.delta.subarray(y_offset * group), l.filters / l.groups, out_wh, kernel_dim);
         }
       }
@@ -47,7 +46,7 @@ class Backward {
     const from_delta = layers[l.indexs].delta;
 
     for (let i = 0; i < l.batch * l.out_c * l.out_w * l.out_h; ++i) {
-      l.delta[i] += l.delta[i] * from_output[i]; // l.delta * from  (should be divided by channel_size?)
+      layers[l.index - 1].delta[i] += l.delta[i] * from_output[i]; // l.delta * from  (should be divided by channel_size?)
       from_delta[i] = input[i] * l.delta[i]; // input * l.delta
     }
   }
@@ -59,7 +58,7 @@ class Backward {
       const delta = layers[index].delta;  // source layer output ptr
       const input_size = l.input_sizes[i];              // source layer size
       const part_input_size = input_size / l.groups;
-      for (let j = 0; j < l.batch; ++j)l.delta.set(delta.subarray(j * input_size + part_input_size * l.group_id, j * input_size + part_input_size * l.group_id + part_input_size), offset + j * l.outputs);
+      for (let j = 0; j < l.batch; ++j)delta.set(l.delta.subarray(j * input_size + part_input_size * l.group_id, j * input_size + part_input_size * l.group_id + part_input_size), offset + j * l.outputs);
       offset += part_input_size;
     }
   }
@@ -69,47 +68,43 @@ class Backward {
 
     const size = l.batch * l.out_c * l.out_w * l.out_h;
     const channel_size = l.out_w * l.out_h;
-    const from_output = layers[l.index + 1].output;
-    const from_delta = layers[l.index + 1].delta;
+    const from_output = layers[l.index - 1].output;
+    const from_delta = layers[l.index - 1].delta;
 
     for (i = 0; i < size; ++i) {
-      l.delta[i / channel_size] += l.delta[i] * from_output[i];// / channel_size; // l.delta * from  (should be divided by channel_size?)
+      layers[l.index].delta[i / channel_size] += l.delta[i] * from_output[i];// / channel_size; // l.delta * from  (should be divided by channel_size?)
       from_delta[i] += input[i / channel_size] * l.delta[i]; // input * l.delta
     }
   }
   static shortcut_layer(layers) {
     const l = this
     Backward.gradient(l.output, l.outputs * l.batch, l.activation, l.delta);
-
-    axpy_cpu(l.outputs * l.batch, l.alpha, l.delta, 1, layers[l.index].delta, 1);
+    for (let i = 0; i < l.outputs * l.batch; ++i) layers[i-1].delta[i] +=  l.delta[i];
     shortcut_cpu(l.batch, l.out_w, l.out_h, l.out_c, l.delta, l.w, l.h, l.c, 1, l.beta, layers[l.index].delta);
 
   }
 
   static avgpool_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
     for (let b = 0; b < l.batch; ++b) {
       for (let k = 0; k < l.c; ++k) {
         const out_index = k + b * l.c;
         for (let i = 0; i < l.h * l.w; ++i) {
           const in_index = i + l.h * l.w * (k + b * l.c);
-          delta[in_index] += l.delta[out_index] / (l.h * l.w);
+          layers[l.index - 1].delta[in_index] += l.delta[out_index] / (l.h * l.w);
         }
       }
     }
   }
   static maxpool_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
     for (let i = 0; i < l.out_h * l.out_w * l.c * l.batch; ++i) {
       const index = l.indexes[i];
-      delta[index] += l.delta[i];
+      layers[l.index - 1].delta[index] += l.delta[i];
     }
   }
   static local_avgpool_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
     const w_offset = -l.pad / 2;
     const h_offset = -l.pad / 2;
     for (let b = 0; b < l.batch; ++b) {
@@ -124,7 +119,7 @@ class Backward {
                 const index = cur_w + l.w * (cur_h + l.h * (k + b * l.c));
                 const valid = (cur_h >= 0 && cur_h < l.h &&
                   cur_w >= 0 && cur_w < l.w);
-                if (valid) delta[index] += l.delta[out_index] / (l.size * l.size);
+                if (valid) layers[l.index - 1].delta[index] += l.delta[out_index] / (l.size * l.size);
               }
             }
           }
@@ -134,33 +129,28 @@ class Backward {
   }
   static dropout_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
     if (!delta) return;
     for (i = 0; i < l.batch * l.inputs; ++i) {
       const r = l.rand[i];
       if (r < l.probability) delta[i] = 0;
-      else delta[i] *= l.scale;
+      else layers[l.index - 1].delta[i] *= l.scale;
     }
   }
   static forward_dropout_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1]
     if (!l.train) return;
     for (i = 0; i < l.batch * l.inputs; ++i) {
       const r = Math.random();
       l.rand[i] = r;
-      if (r < l.probability) delta[i] = 0;
-      else delta[i] *= l.scale;
+      if (r < l.probability) layers[l.index - 1].delta[i] = 0;
+      else layers[l.index - 1].delta[i] *= l.scale;
     }
   }
   static softmax_layer(layers) {
     const l = this
-    const delta = layers[l.index + 1].delta
-    Backward.axpy_cpu(l.inputs * l.batch, 1, l.delta, 1, delta, 1);
+    for (let i = 0; i < l.inputs * l.batch; ++i) layers[l.index - 1].delta[i] += l.delta[i];
   }
-  static axpy_cpu(N, ALPHA, X, INCX, Y, INCY) {
-    for (let i = 0; i < N; ++i) Y[i * INCY] += ALPHA * X[i * INCX];
-  }
+
   static gradient(x, a, delta) {
     switch (a) {
       case "LOGISTIC":
