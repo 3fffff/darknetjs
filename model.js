@@ -236,7 +236,7 @@ class Model {
     else return null;
   }
   parse_upsample(options, param) {
-    const stride = this.option_find_int(options, "stride", 2);
+    let stride = this.option_find_int(options, "stride", 2);
     const l = {};
     l.type = "UPSAMPLE";
     l.tpi = "NEAREST"
@@ -248,7 +248,7 @@ class Model {
     l.out_h = l.h * stride;
     l.out_c = l.c;
     if (stride < 0) {
-      stride = -stride;
+      stride = (-1) * stride;
       l.reverse = 1;
       l.out_w = l.w / stride;
       l.out_h = l.h / stride;
@@ -418,7 +418,7 @@ class Model {
 
     l.inputs = param.inputs;
     l.outputs = param.outputs;
-    l.batch = 1;
+    l.batch = param.batch;
     l.batch_normalize = this.option_find_int(options, 'batch_normalize', 0);
     l.h = 1;
     l.w = 1;
@@ -448,6 +448,45 @@ class Model {
     this.options_from_layer(options, l)
     return l;
   }
+
+  cost_layer(options, param) {
+    const l = {};
+    l.type = "COST";
+
+    l.scale = param.scale;
+    l.batch = param.batch;
+    l.inputs = param.inputs;
+    l.outputs = param.inputs;
+    l.cost_type = param.cost_type;
+    l.delta = new Float32Array(inputs * batch);
+    l.output = new Float32Array(inputs * batch);
+    l.cost = 0;
+    this.options_from_layer(options, l)
+    return l;
+  }
+
+  crop_layer(options, param) {
+    const l = {};
+    l.type = "CROP";
+    l.batch = param.batch;
+    l.h = param.h;
+    l.w = param.w;
+    l.c = param.c;
+    l.scale = param.crop_height / l.h;
+    l.flip = param.flip;
+    l.angle = param.angle;
+    l.saturation = param.saturation;
+    l.exposure = param.exposure;
+    l.out_w = param.crop_width;
+    l.out_h = param.crop_height;
+    l.out_c = c;
+    l.inputs = l.w * l.h * l.c;
+    l.outputs = l.out_w * l.out_h * l.out_c;
+    l.output = new Float32Array(l.outputs * batch);
+    this.options_from_layer(options, l)
+    return l;
+  }
+
   read_cfg(cfg) {
     const lines = cfg.split("\n");
     const sections = [];
@@ -575,7 +614,8 @@ class Model {
     net.w = this.option_find_int(sections[0].options, "width", 1);
     net.h = this.option_find_int(sections[0].options, "height", 1);
     net.c = this.option_find_int(sections[0].options, "channels", 1);
-    net.batch = 1;
+    net.batch = this.option_find_int(sections[0].options, "batch", 1);
+    net.train = this.option_find_int(sections[0].options, "train", false);
     net.quant = quant
     net.wasmSupport = wasm
     if (quant) {
@@ -615,8 +655,7 @@ class Model {
     return layers
   }
   initGL(layers) {
-    const webgl = new WebGL("webgl2")
-    layers[0].webgl = webgl
+    layers[0].webgl = new WebGL("webgl2")
     for (let i = 1; i < layers.length; i++) {
       const l = layers[i]
       if (l.type.toUpperCase() == 'CONVOLUTIONAL') {
@@ -684,7 +723,7 @@ class Model {
       else if (l.type.toUpperCase() == 'DROPOUT') {
         l.artifacts = layers[i - 1].artifacts
         l.runData = layers[i - 1].runData
-        layers[0].webgl.setTextureData("t"+l.index, l.runData[l.runData.length - 1].outputTextureData);
+        layers[0].webgl.setTextureData("t" + l.index, l.runData[l.runData.length - 1].outputTextureData);
       }
       else if (l.type.toUpperCase() == 'YOLO') {
         l.forwardGl = forwardWebglYolo
