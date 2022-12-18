@@ -1,0 +1,27 @@
+{
+  "name": "darknet",
+  "version": "1.0.0",
+  "description": "",
+  "source": "src/index.js",
+  "main": "dist/bundle.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "watch": "parcel watch",
+    "build": "parcel build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3fffff/darknetjs.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/3fffff/darknetjs/issues"
+  },
+  "homepage": "https://github.com/3fffff/darknetjs#readme",
+  "devDependencies": {
+    "parcel": "^2.8.2"
+  }
+}

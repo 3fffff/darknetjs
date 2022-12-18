@@ -1,4 +1,4 @@
-class ImageLoader {
+export class ImageLoader {
   constructor(imageWidth, imageHeight, quant) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = imageWidth;
@@ -25,7 +25,7 @@ class ImageLoader {
   }
 }
 
-class ImageProcess {
+export class ImageProcess {
   static preprocess(data, width, height, mean = [0, 0, 0], c = [2, 1, 0], scale = 1, inv = false, quant) {
     const vol = quant ? new Int8Array(width * height * 3) : new Float32Array(width * height * 3);
     for (let y = 0; y < height; y++) {
@@ -80,7 +80,7 @@ class ImageProcess {
   fill_network_boxes(layers, w, h, thresh, relative, dets, letter) {
     for (let j = 1; j < layers.length; ++j)
       if (layers[j].type == "YOLO")
-        this.get_yolo_detections(layers[j], w, h, layers[0].w, layers[0].h, thresh, relative, dets, letter);
+        this.get_yolo_detections(layers[j], w, h, layers[0].out_w, layers[0].out_h, thresh, relative, dets, letter);
   }
 
   get_network_boxes(layers, w, h, thresh, relative, letter) {
@@ -138,7 +138,7 @@ class ImageProcess {
   }
   static resize_image(im, w, h, wi, hi, ci, quant) {
     let resized = quant ? new Int8Array(Math.ceil(w * h * ci)) : new Float32Array(Math.ceil(w * h * ci));
-    let part = new Array(w * hi * ci);
+    let part = Array(w * hi * ci);
     let w_scale = (wi - 1) / (w - 1);
     let h_scale = (hi - 1) / (h - 1);
     for (let k = 0; k < ci; ++k) {

@@ -9,59 +9,13 @@
     Nothing uploaded yet
   </div>
 </body>
-<script src="wasm/wasm-check.js"></script>
-<script src="wasm/wforward.js"></script>
-<script src="wasm/wasm.js"></script>
-<script src="wasm/wasm-worker-init.js"></script>
-<script src="wasm/wasmfuncs.js"></script>
-<script src="webgl/glsl-definitions.js"></script>
-<script src="webgl/glsl-coordinate-lib.js"></script>
-<script src="webgl/glsl-encoding-lib.js"></script>
-<script src="webgl/glsl-fragcolor-lib.js"></script>
-<script src="webgl/glsl-shape-utils-lib.js"></script>
-<script src="webgl/glsl-source.js"></script>
-<script src="webgl/glsl-vec-lib.js"></script>
-<script src="webgl/glsl-preprocessor.js"></script>
-<script src="webgl/texture-data-encoder.js"></script>
-<script src="webgl/texture-manager.js"></script>
-<script src="webgl/WebGL.js"></script>
-<script src="webgl/program-manager.js"></script>
-<script src="webgl/webgl-context.js"></script>
-<script src="webgl/ops/batch-normalization.js"></script>
-<script src="webgl/ops/activation.js"></script>
-<script src="webgl/ops/sum.js"></script>
-<script src="webgl/ops/upsample.js"></script>
-<script src="webgl/ops/pool.js"></script>
-<script src="webgl/ops/conv.js"></script>
-<script src="webgl/ops/route.js"></script>
-<script src="ImageProcess.js"></script>
-<script src="forward.js"></script>
-<script src="model.js"></script>
-<script>
+<script type="module">
+  import createLayers from './src/network.js'
+  import {layersForward} from './src/cpu.js'
+  import {ImageLoader,ImageProcess} from './ImageProcess.js'
   const imageLoader = new ImageLoader(768, 576, false);
   var loadWeight = false
   var loadModel = null
-  const wasmSupport = wasmcheck.support()
-  const Simd = wasmcheck.feature.simd
-  const thread = wasmcheck.feature.threads
-  if (!wasmSupport) console.log("wasm is not supported");
-  if (!Simd) console.log("simd is not supported")
-  if (wasmSupport && thread) {
-    initWorkers(3).then(
-      () => {
-        WasmBinding.getInstance();
-        postMessage({ type: 'init-success' });
-      },
-    );
-  }
-  else if (wasmSupport && !thread) {
-    initWorkers(0).then(
-      () => {
-        WasmBinding.getInstance();
-        postMessage({ type: 'init-success' });
-      },
-    );
-  }
   function abortRead() {
     //  reader.abort();
   }
@@ -142,10 +96,12 @@
       const fileContents = await readUploadedFileAsText(file);
       const blb = await readUploadedBlob(blob)
       const weights = new DataView(blb);
-      const model = new Model()
-      loadModel = model.parse_network_cfg(fileContents, weights, false, false, true)
-      await imageLoader.getImageData('./dog.jpg');
-      document.getElementById("file-content").appendChild(imageLoader.canvas)
+      loadModel = createLayers(fileContents, weights, false)
+      for(let i=1;i<loadModel.length;i++)
+        loadModel[i].forward = layersForward[loadModel[i].type]
+      console.log(loadModel)
+       await imageLoader.getImageData('./dog.jpg');
+       document.getElementById("file-content").appendChild(imageLoader.canvas)
     } catch (e) {
       console.log(e)
       fileContentDiv.innerHTML = e.message;
@@ -156,7 +112,7 @@
     try {
       console.log(loadWeight)
       //console.time();
-      await start(imageLoader.pixels, 768, 576,3,true)
+      await start(imageLoader.pixels, 768, 576, 3, true)
       // console.timeEnd();
       const img = new ImageProcess()
       const dets = img.get_network_boxes(loadModel, 1, 1, 0.2, 0, 0);
@@ -183,14 +139,10 @@
     }
   };
   async function start(img, width, height, channels = 3, webgl) {
-    loadModel[0].output = ImageProcess.resize_image(img, loadModel[0].w, loadModel[0].h, width, height, channels, loadModel[0].quant)
+    loadModel[0].output = ImageProcess.resize_image(img, loadModel[0].out_w, loadModel[0].out_h, width, height, channels, loadModel[0].quant)
     //for(let i=0;i<loadModel[0].output.length;i++)loadModel[0].output[i] = 0
     console.time()
-    if (!webgl) for (let i = 1; i < loadModel.length; ++i)await loadModel[i].forward(loadModel)
-    else {
-      loadModel[0].webgl.initFirstTexture(loadModel[1].runData[0].inputTextureDatas[0], loadModel[0].output)
-      for (let i = 1; i < loadModel.length; ++i)loadModel[i].forwardGl(loadModel)
-    }
+    for (let i = 1; i < loadModel.length; ++i)await loadModel[i].forward(loadModel)
     console.timeEnd()
   }
   document.querySelector('input#primary-file-upload').addEventListener('change', handleUploadWeight);
