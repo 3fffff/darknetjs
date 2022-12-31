@@ -1,6 +1,11 @@
+export function batchNorm(webgl,l){
+  const textures = [{ TextureID: "t" + (l.index - 1), pad: l.pad, size: l.size, stride_x: l.stride_x, stride_y: l.stride_x, shape: [l.batch, l.c, l.h, l.w] }]
+  const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w], l.type)
+  l.artifacts = [webgl.programManager.build(glProg)]
+  l.runData = createRunData(webgl, textures, glProg, l.index)
+}
 
-
-function createProgramInfo(handler, inputs, outputShape) {
+export function createProgramInfo(handler, inputs, outputShape) {
   const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape));
   const rank = outputShape.length;
   const scale = inputLayouts[1];
@@ -23,7 +28,7 @@ function createProgramInfo(handler, inputs, outputShape) {
     shaderSource
   };
 }
-function createRunData(handler, textures, glProg, outTextureID) {
+export function createRunData(handler, textures, glProg, outTextureID) {
   const inputTDs = [handler.getOrCreateTextureData(textures, glProg.inputLayouts)];
   textures.slice(1).forEach(t => inputTDs.push(handler.getOrCreateTextureData(t)));
   const outputTD = handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', outTextureID);

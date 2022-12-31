@@ -1,5 +1,4 @@
-
-export function convolutional(l){
+export function convolutional(webgl, l) {
   const textures = [{ index: l.index, activation: l.activation, TextureID: "t" + (l.index - 1), activation: l.activation, pad: l.pad, size: l.size, shape: [l.batch, l.c, l.h, l.w] },
   { batch: l.batch, filters: l.filters, size: l.size, output: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
   { output: l.biases, TextureID: 'bias' + l.index, shape: [l.filters] }]
