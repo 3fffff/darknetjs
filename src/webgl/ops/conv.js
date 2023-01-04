@@ -1,3 +1,6 @@
+import { getGlsl } from "../libglsl/glsl-source.js"
+import { getGlActivation } from "./activation.js"
+
 export function convolutional(webgl, l) {
   const textures = [{ index: l.index, activation: l.activation, TextureID: "t" + (l.index - 1), activation: l.activation, pad: l.pad, size: l.size, shape: [l.batch, l.c, l.h, l.w] },
   { batch: l.batch, filters: l.filters, size: l.size, output: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
@@ -22,14 +25,14 @@ class WebGLConv {
   static createProgramInfos(handler, inputs, outputShape, activation, batch_normalize) {
     const im2colProgramInfo = createIm2ColProgramInfo(handler, inputs, outputShape);
     const dotProductProgramInfo = createDotProductProgramInfo(handler, im2colProgramInfo.outputLayout, inputs, outputShape, activation);
-    const BNProgramInfo = batch_normalize ? WebGLBatchNormalization.createProgramInfo(handler, dotProductProgramInfo.outputLayout, inputs, outputShape, activation) : null;
+    const BNProgramInfo = batch_normalize ? createProgramInfoBatch(handler, dotProductProgramInfo.outputLayout, inputs, outputShape, activation) : null;
     return [im2colProgramInfo, dotProductProgramInfo].filter(x => !!x);
   }
   static createRunDatas(handler, textures, glProg, outTextureID, batch_normalize) {
     const b = textures.length >= 3 ? textures[2] : undefined;
     let kTD = handler.getTextureData(textures[1].TextureID);
     if (!kTD) {
-      console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
+      //console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
       const newKernelData = WebGLConv.prepKernelForDotProduct(textures[1].shape, textures[1].groups, 4, textures[1].output);
       // hack: should use graph transformer to rewrite initializer K
       kTD = handler.createTextureDataFromLayoutBindTensor(glProg[1].inputLayouts[1], 'float32', newKernelData, textures[1]);
@@ -190,7 +193,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
 class WebGLGroupConv {
   static createProgramInfos(handler, inputs, outputShape, activation, batch_normalize) {
     const groupConvProgramInfo = createGroupConvProgramInfo(handler, inputs, outputShape, activation);
-    const batchnormProgramInfo = batch_normalize ? WebGLBatchNormalization.createProgramInfo(handler, groupConvProgramInfo.outputLayout, inputs, outputShape, activation) : null;
+    const batchnormProgramInfo = batch_normalize ? createProgramInfoBatch(handler, groupConvProgramInfo.outputLayout, inputs, outputShape, activation) : null;
     return [groupConvProgramInfo].filter(x => !!x)
   }
   static createRunDatas(handler, texture, glProg, outTextureID) {

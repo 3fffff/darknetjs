@@ -1,4 +1,4 @@
-export function dropout_layer(layers) {
+export function dropout(layers) {
     const l = this
     if (!delta) return;
     for (let i = 0; i < l.batch * l.inputs; ++i) {

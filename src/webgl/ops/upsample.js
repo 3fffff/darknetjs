@@ -1,4 +1,5 @@
-export function upsample(webgl,l){
+import { getGlsl } from "../libglsl/glsl-source.js"
+export function upsample(webgl, l) {
   const textures = [{ TextureID: "t" + (l.index - 1), scale: 1, stride: l.stride, shape: [l.batch, l.c, l.h, l.w] }]
   const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w])
   l.artifacts = [webgl.programManager.build(glProg)];

@@ -1,4 +1,4 @@
-
+import { RedFloat32DataEncoder, RGBAFloatDataEncoder } from "./texture-data-encoder.js"
 /**
  * Abstraction and wrapper around WebGLRenderingContext and its operations
  */

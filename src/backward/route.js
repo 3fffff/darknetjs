@@ -1,4 +1,4 @@
-export function route_layer(layers) {
+export function route(layers) {
     const l = this
     let offset = 0;
     for (let i = 0; i < l.input_layers.length; ++i) {

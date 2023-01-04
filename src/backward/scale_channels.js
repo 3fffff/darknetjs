@@ -1,4 +1,4 @@
-export function scale_channels_layer(layers) {
+export function scale_channels(layers) {
     const l = this
     Backward.gradient(l.output, l.outputs * l.batch, l.activation, l.delta);
 

@@ -1,4 +1,4 @@
-export function connected_layer(layers) {
+export function connected(layers) {
     const l = this
     Backward.gradient(l.output, l.outputs * l.batch, l.activation, l.delta);
     Backward.batchnorm(l)

@@ -14,7 +14,7 @@ import { softmax } from './layers/softmax.js'
 import { upsample } from './layers/upsample.js'
 import { yolo } from './layers/yolo.js'
 
-export const layersStrategy = {
+export const layersDefinition = {
   'CONVOLUTIONAL': convolutional,
   'DECONVOLUTIONAL': deconvolutional,
   'CONNECTED': connected,

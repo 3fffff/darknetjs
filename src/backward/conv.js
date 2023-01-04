@@ -1,4 +1,4 @@
-export function convolutional_layer(layers) {
+export function convolutional(layers) {
     const l = this
     const kernel_dim = l.size * l.size * l.c / l.groups;
     const out_wh = l.out_h * l.out_w;

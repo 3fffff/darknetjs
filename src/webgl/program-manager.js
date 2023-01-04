@@ -1,4 +1,5 @@
-
+import {GlslPreprocessor} from "./libglsl/glsl-preprocessor.js"
+import {getVertexShaderSource } from "./libglsl/glsl-source.js"
 /**
  * ProgramManager is the main class behind running computations
  * It builds ProgramInfo's into Artifacts
@@ -14,13 +15,6 @@ export class ProgramManager {
     this.glContext = glContext;
     this.attributesBound = false;
   }
-  getTextureData(tensorId) {
-    return this.textureDataCache.get(tensorId);
-  }
-  setTextureData(tensorId, textureData) {
-    console.log('Storing Texture data in cache');
-    this.textureDataCache.set(tensorId, textureData);
-  }
   run(buildArtifact, runData) {
     const gl = this.glContext.gl;
     const program = buildArtifact.program;
@@ -34,8 +28,8 @@ export class ProgramManager {
       console.log('ProgramManager', buildArtifact.programInfo.shaderSource);
       throw err;
     }
-    this.doDraw(buildArtifact, runData);
-    gl.flush();
+    this.glContext.draw();
+    //gl.flush();
   }
   dispose() {
     if (this.vertexShader) this.glContext.deleteShader(this.vertexShader);
@@ -53,10 +47,6 @@ export class ProgramManager {
       attribLocations: this.getAttribLocations(program)
     };
     return artifact;
-  }
-  doDraw(artifact, runData) {
-    if (runData.draw) runData.draw(this.glContext, artifact);
-    else this.glContext.draw();
   }
   compile(fragShaderScript) {
     if (!this.vertexShader) {

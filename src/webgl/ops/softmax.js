@@ -1,3 +1,40 @@
+import { getGlsl } from "../libglsl/glsl-source.js"
+export function softmax(webgl, l) {
+  const textures = [{ TextureID: "t" + (l.index - 1), shape: [1, l.weights.length] }]
+  const glProg = createProgramInfos(webgl, l)
+  l.artifacts = [webgl.programManager.build(glProg)];
+  l.runData = createRunDatas(webgl, textures, glProg, l.index)
+}
+
+function createProgramInfos(inferenceHandler, inputs) {
+  const axis = WebGLSoftmax.normalizeAxis(this.axis, input.shape.length);
+  const N = WebGLSoftmax.sizeToDimension(input.shape, axis);
+  const D = WebGLSoftmax.sizeFromDimension(input.shape, axis);
+  const computeMaxProgramInfo = createComputeMaxProgramInfo(inferenceHandler, inputs[0], N, D, [N]);
+  const computeScaleProgramInfo = createComputScaleProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, [N]);
+  const softMaxProgramInfo = createSoftMaxProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, computeScaleProgramInfo.outputLayout);
+  const programInfos = [computeMaxProgramInfo, computeScaleProgramInfo, softMaxProgramInfo];
+  return programInfos;
+}
+function createRunDatas(inferenceHandler, programInfos, inputs) {
+  const dataType = inputs[0].type;
+  const inputTD = inferenceHandler.getOrCreateTextureData(inputs[0], programInfos[0].inputLayouts[0]);
+  const runDatas = [];
+  runDatas.push({
+    inputTextureDatas: [inputTD],
+    outputTextureData: inferenceHandler.createTextureDataFromLayout(programInfos[0].outputLayout, dataType),
+    uniformData: {}
+  });
+  for (let i = 1; i < programInfos.length; ++i) {
+    runDatas.push({
+      inputTextureDatas: [...runDatas[i - 1].inputTextureDatas, runDatas[i - 1].outputTextureData],
+      outputTextureData: inferenceHandler.createTextureDataFromLayout(programInfos[i].outputLayout, dataType),
+      uniformData: {}
+    });
+  }
+  return runDatas;
+}
+
 function createSoftMaxProgramInfo(inferenceHandler, input, N, D, maxElementPerLogicalRow, normalizationPerLogicalRow) {
   const inputShape = input.dims.slice();
   const inputLayout = inferenceHandler.createTextureLayoutFromShape(inputShape);
@@ -79,7 +116,7 @@ function createComputScaleProgramInfo(inferenceHandler, x, N, D, maxElementPerLo
 /**
  * Create a texture that contains the maximum value of each of the 'N' rows
  */
-createComputeMaxProgramInfo(inferenceHandler, x, N, D, outputShape) {
+function createComputeMaxProgramInfo(inferenceHandler, x, N, D, outputShape) {
   const xlayout = inferenceHandler.createTextureLayoutFromShape(x.dims.slice());
   const rank = outputShape.length;
   const textureWidth = xlayout.width;
@@ -116,34 +153,7 @@ createComputeMaxProgramInfo(inferenceHandler, x, N, D, outputShape) {
     shaderSource,
   };
 }
-createProgramInfos(inferenceHandler, inputs) {
-  const axis = WebGLSoftmax.normalizeAxis(this.axis, input.shape.length);
-  const N = WebGLSoftmax.sizeToDimension(input.shape, axis);
-  const D = WebGLSoftmax.sizeFromDimension(input.shape, axis);
-  const computeMaxProgramInfo = this.createComputeMaxProgramInfo(inferenceHandler, inputs[0], N, D, [N]);
-  const computeScaleProgramInfo = this.createComputScaleProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, [N]);
-  const softMaxProgramInfo = this.createSoftMaxProgramInfo(inferenceHandler, inputs[0], N, D, computeMaxProgramInfo.outputLayout, computeScaleProgramInfo.outputLayout);
-  const programInfos = [computeMaxProgramInfo, computeScaleProgramInfo, softMaxProgramInfo];
-  return programInfos;
-}
-createRunDatas(inferenceHandler, programInfos, inputs) {
-  const dataType = inputs[0].type;
-  const inputTD = inferenceHandler.getOrCreateTextureData(inputs[0], programInfos[0].inputLayouts[0]);
-  const runDatas = [];
-  runDatas.push({
-    inputTextureDatas: [inputTD],
-    outputTextureData: inferenceHandler.createTextureDataFromLayout(programInfos[0].outputLayout, dataType),
-    uniformData: {}
-  });
-  for (let i = 1; i < programInfos.length; ++i) {
-    runDatas.push({
-      inputTextureDatas: [...runDatas[i - 1].inputTextureDatas, runDatas[i - 1].outputTextureData],
-      outputTextureData: inferenceHandler.createTextureDataFromLayout(programInfos[i].outputLayout, dataType),
-      uniformData: {}
-    });
-  }
-  return runDatas;
-}
+
 function normalizeAxis(axis, tensorRank) {
   if (axis < -tensorRank && axis >= tensorRank) {
     throw new Error('unsupported axis for this operation.');

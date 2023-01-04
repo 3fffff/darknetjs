@@ -1,17 +1,16 @@
-
-class GlslContext {
+export class GlslContext {
   constructor(glContext, programInfo) {
     this.glContext = glContext;
     this.programInfo = programInfo;
   }
 }
-class GlslLib {
+export class GlslLib {
   constructor(context) {
     this.context = context;
   }
 }
 // abstraction to represent a GLSL library routine and it's dependencies
-class GlslLibRoutine {
+export class GlslLibRoutine {
   constructor(routineBody, dependencies) {
     this.routineBody = routineBody;
     this.dependencies = dependencies;
@@ -39,7 +38,7 @@ export class GlslLibRoutineNode {
   }
 }
 // topologically sort GLSL library routines (graph nodes abstraction) before shader script inclusion
-class TopologicalSortGlslRoutines {
+export class TopologicalSortGlslRoutines {
   static returnOrderedNodes(nodes) {
     if (!nodes || nodes.length === 0) {
       return [];
@@ -71,11 +70,9 @@ class TopologicalSortGlslRoutines {
     cycleCheck.add(root.name);
     // traverse children in a dfs fashion
     const dependencies = root.dependencies;
-    if (dependencies && dependencies.length > 0) {
-      for (let i = 0; i < dependencies.length; ++i) {
+    if (dependencies && dependencies.length > 0)
+      for (let i = 0; i < dependencies.length; ++i)
         this.dfsTraverse(dependencies[i], cycleCheck, alreadyTraversed, result);
-      }
-    }
     // add to result holder
     result.push(root);
     // mark this node as traversed so that we don't traverse from this again

@@ -1,11 +1,11 @@
-export function route(webgl,l){
+export function route(webgl, l) {
   const textures = []
   let glProg;
   if (l.input_layers.length == 1) {
-    textures.push({ groups: 0, TextureID: "t" + l.input_layers[0].index, shape: [l.input_layers[0].batch, l.out_c, l.input_layers[0].h, l.input_layers[0].w] })
+    textures.push({ groups: 0, TextureID: "t" + l.input_layers[0], shape: [l.batch, l.out_c, l.out_h, l.out_w] })
     glProg = createSplitProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.group_id * l.out_c)
   } else {
-    for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i].index, shape: [l.input_layers[i].batch, l.input_layers[i].out_c, l.input_layers[i].out_h, l.input_layers[i].out_w] })
+    for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i], shape: [l.batch, l.out_c / l.input_layers.length, l.out_h, l.out_w] })
     glProg = createProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w])
   }
   l.artifacts = [webgl.programManager.build(glProg)];
@@ -15,14 +15,14 @@ export function route(webgl,l){
 function createProgramInfo(handler, inputs, outputShape, axis = 1) {
   const rank = outputShape.length;
   // in most cases linear search is sufficient, as in most scenarios, only 2 tensors are concatenated
-  const getTextureIndexWhereDataResidesMethod = getTextureIndexWhereDataResidesLinearSearch(inputs.length);
-  const fetchDataFromCorrectTextureMethod = fetchDataFromCorrectTextureMethod(inputs.length, rank);
-  const getValueFromArrayIndexMethod = getValueFromArrayIndexMethod(inputs.length);
+  const getTextureIndexWhereDataResides = getTextureIndexWhereDataResidesLinearSearch(inputs.length);
+  const fetchDataFromCorrectTexture = fetchDataFromCorrectTextureMethod(inputs.length, rank);
+  const getValueFromArrayIndex = getValueFromArrayIndexMethod(inputs.length);
   const samplers = inputs.map((v, i) => `X${i}`);
   const shaderSource = `
-    ${fetchDataFromCorrectTextureMethod}
-    ${getValueFromArrayIndexMethod}
-    ${getTextureIndexWhereDataResidesMethod}
+    ${fetchDataFromCorrectTexture}
+    ${getValueFromArrayIndex}
+    ${getTextureIndexWhereDataResides}
     float process(int indices[${rank}]) {
       int textureIndex = getTextureWhereDataResides (indices[${axis}]);
 

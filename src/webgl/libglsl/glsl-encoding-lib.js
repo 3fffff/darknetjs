@@ -1,4 +1,4 @@
-
+import { GlslLib, GlslLibRoutine } from "./glsl-definitions.js"
 /**
  * This GLSL library handles routines converting
  * float32 to/from Unsigned byte or float 16

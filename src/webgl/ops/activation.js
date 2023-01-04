@@ -4,6 +4,8 @@ export function getGlActivation(type) {
       return glslSigmoid(type)
     case "RELU":
       return glslRelu(type);
+    case "ELU":
+      return glslElu(type);
     case "LEAKY":
       return glslLeakyRelu(type)
     case "MISH":

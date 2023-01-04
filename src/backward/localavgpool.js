@@ -1,4 +1,4 @@
-export function local_avgpool_layer(layers) {
+export function local_avgpool(layers) {
     const l = this
     const w_offset = -l.pad / 2;
     const h_offset = -l.pad / 2;

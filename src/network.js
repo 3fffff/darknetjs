@@ -1,4 +1,4 @@
-import { layersStrategy } from "./layers.js";
+import { layersDefinition } from "./layers.js";
 
 export default function parse_network_cfg(filename, weights, quant) {
   const sections = read_cfg(filename);
@@ -31,7 +31,7 @@ export default function parse_network_cfg(filename, weights, quant) {
     sections[i].options.height = parseInt(layers[!lo ? layers.length - 1 : route_index].out_h)
     sections[i].options.channels = parseInt(layers[!lo ? layers.length - 1 : route_index].out_c)
 
-    let l = layersStrategy[sections[i].type.toUpperCase()](sections[i].options);
+    let l = layersDefinition[sections[i].type.toUpperCase()](sections[i].options);
     l.dontload = "dontload" in sections[i].options ? sections[i].options["dontload"] : 0;
     l.dontloadscales = "dontloadscales" in sections[i].options ? sections[i].options["dontloadscales"] : 0;
     if (!l.type) continue

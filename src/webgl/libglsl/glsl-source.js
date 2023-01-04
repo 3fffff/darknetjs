@@ -1,5 +1,4 @@
-
-function getGlsl(version) {
+export function getGlsl(version) {
   const GLSL_ES_2_0 = {
     version: '',
     attribute: 'attribute',
@@ -20,7 +19,7 @@ function getGlsl(version) {
   };
   return version === 1 ? GLSL_ES_2_0 : GLSL_ES_3_0;
 }
-function getVertexShaderSource(version) {
+export function getVertexShaderSource(version) {
   const glsl = getGlsl(version);
   return `${glsl.version}
       precision highp float;
@@ -35,7 +34,7 @@ function getVertexShaderSource(version) {
           TexCoords = textureCoord;
       }`;
 }
-function getFragShaderPreamble(version) {
+export function getFragShaderPreamble(version) {
   const glsl = getGlsl(version);
   return `${glsl.version}
     precision highp float;
@@ -46,7 +45,7 @@ function getFragShaderPreamble(version) {
     ${glsl.outputDeclaration}
     `;
 }
-function getDefaultFragShaderMain(version, outputShapeLength) {
+export function getDefaultFragShaderMain(version, outputShapeLength) {
   const glsl = getGlsl(version);
   return `
   void main() {

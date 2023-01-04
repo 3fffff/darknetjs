@@ -1,4 +1,5 @@
-
+import { GlslLib, GlslLibRoutine } from "./glsl-definitions.js"
+import { getGlsl } from "../libglsl/glsl-source.js"
 /**
  * GLSL Library responsible for data types and routines for manipulating
  * coordinates and mapping to/from tensor indices
@@ -118,7 +119,7 @@ export class CoordsGlslLib extends GlslLib {
   getUnpackedSamplerFromInput(funcName, name, inputLayout) {
     const shape = inputLayout.shape;
     switch (shape.length) {
-      case 1:return this.getUnpackedSampler1D(funcName, name, inputLayout);
+      case 1: return this.getUnpackedSampler1D(funcName, name, inputLayout);
       case 2: null;
       case 3: null;
       case 4: return this.getUnpackedSampler4D(funcName, name, inputLayout);
@@ -203,13 +204,13 @@ export class CoordsGlslLib extends GlslLib {
     return this.getUnpackedOutputSamplingSnippet(outputLayout);
   };
   generateShaderFuncNameFromInputSamplerName(samplerName) {
-    if(typeof samplerName !== 'undefined' && samplerName.length === 0)
-      throw new Error('empty string found for sampler name'); 
+    if (typeof samplerName !== 'undefined' && samplerName.length === 0)
+      throw new Error('empty string found for sampler name');
     return 'get' + samplerName.charAt(0).toUpperCase() + samplerName.slice(1);
   }
   generateShaderFuncNameFromInputSamplerNameAtOutCoords(samplerName) {
-    if(typeof samplerName !== 'undefined' && samplerName.length === 0)
-      throw new Error('empty string found for sampler name'); 
+    if (typeof samplerName !== 'undefined' && samplerName.length === 0)
+      throw new Error('empty string found for sampler name');
     return 'get' + samplerName.charAt(0).toUpperCase() + samplerName.slice(1) + 'AtOutCoords';
   }
   /**

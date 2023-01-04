@@ -1,4 +1,4 @@
-export function connected(webgl,l){
+export function connected(webgl, l) {
   const textures = [{ TextureID: "tw" + l.index, shape: [l.weights.length, 1], output: l.weights }, { TextureID: "t" + (l.index - 1), shape: [1, l.weights.length] }]
   const glProg = createProgramInfo(webgl, l)
   l.artifacts = [webgl.programManager.build(glProg)];

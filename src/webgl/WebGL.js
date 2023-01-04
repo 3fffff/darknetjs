@@ -1,3 +1,5 @@
+import {WebGLContext} from "./webgl-context.js"
+import {ProgramManager} from "./program-manager.js"
 
 export class WebGL {
   static cache = {}
@@ -5,14 +7,12 @@ export class WebGL {
     this.context = context;
     try {
       this.glContext = createWebGLContext(this.context);
-      if (typeof this.matmulMaxBatchSize !== 'number') this.matmulMaxBatchSize = 16;
       if (typeof this.textureCacheMode !== 'string') this.textureCacheMode = 'full';
       console.log(`Created WebGLContext: ${JSON.stringify(this.glContext)}`);
     }
     catch (e) {
       console.log(`Unable to initialize WebGL. ${e}`);
     }
-    this.textureManager = new TextureManager(this.glContext, this.textureCacheMode === 'full');
     this.textureDataCache = new Map();
     this.programManager = new ProgramManager(this.glContext);
   }
@@ -20,20 +20,20 @@ export class WebGL {
     return this.textureDataCache.get(tensorId);
   }
   setTextureData(tensorId, textureData) {
-    console.log('Storing Texture data in cache');
+    //console.log('Storing Texture data in cache');
     this.textureDataCache.set(tensorId, textureData);
   }
   dispose() {
     this.programManager.dispose();
-    this.textureManager.clearActiveTextures();
-    this.textureDataCache.forEach(td => this.textureManager.releaseTexture(td, true));
+    this.clearActiveTextures();
+    this.textureDataCache.forEach(td => this.releaseTexture(td, true));
     this.textureDataCache = new Map();
   }
   initFirstTexture(textureData, data) {
     const textureDataType = 'float';
     const encoder = this.glContext.getEncoder(textureDataType, 1, 1);
     console.log(`Init first image texture of size ${textureData.width}x${textureData.height}`);
-    this.glContext.updateTexture(textureData.texture, textureData.width, textureData.height, encoder, this.textureManager.toTextureData(data));
+    this.glContext.updateTexture(textureData.texture, textureData.width, textureData.height, encoder, this.toTextureData(data));
   }
   /**
    * Create a TextureData object from a tensor.
@@ -54,7 +54,7 @@ export class WebGL {
       // graph inputs or initializers
       td = this.createTextureData(layout, 'float', tensor.TextureID, tensor.output, tensor, 1);
     }
-    else console.log(`Retrieving TextureData from cache: [${tensor.TextureID}]`);
+    //else console.log(`Retrieving TextureData from cache: [${tensor.TextureID}]`);
     return td;
   }
   /**
@@ -78,8 +78,8 @@ export class WebGL {
     return this.createTextureData(layout, dataType, tensor.TextureID, data, tensor, 1 /* UploadOnly */);
   }
   createTextureData(layout, dataType = 'float32', TextureID, data, usage) {
-    console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
-    const texture = this.textureManager.createTextureFromLayout(dataType, layout, data, usage);
+    //console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
+    const texture = this.createTextureFromLayout(dataType, layout, data, usage);
     return this.createTextureDataFromTexture(layout, dataType, texture, TextureID);
   }
   /**
@@ -138,10 +138,42 @@ export class WebGL {
     if (!this.glContext.isFloat32DownloadSupported) {
       const op = new WebGLUint8Encode();
       const uint8TD = op.runInternal(this, textureData);
-      return this.textureManager.readUint8TextureAsFloat(uint8TD);
+      return this.readUint8TextureAsFloat(uint8TD);
     }
-    return this.textureManager.readTexture(textureData, 'float32', textureData.channels);
+    return this.readTextureAsFloat(textureData, 'float32', textureData.channels);
   }
+
+  toTextureData(data) {
+    if (!data) return undefined;
+    return (data instanceof Float32Array) ? data : new Float32Array(data);
+  }
+  createTextureFromLayout(dataType, layout, data, usage) {
+    const textureDataType = 'float';
+    const encoder = this.glContext.getEncoder(textureDataType, layout.channels || 1, usage);
+    //console.log('TextureManager', `Creating new texture of size ${layout.width}x${layout.height}`);
+    const texture = this.glContext.allocateTexture(layout.width, layout.height, encoder, this.toTextureData( data));
+    return texture;
+  }
+  readTextureAsFloat(td, dataType, channels) {
+    if (!channels) channels = 1;
+    const dataSize = td.shape.reduce((a, b) => a * b) * channels;
+    return this.glContext.readTexture(td.texture, td.width, td.height, dataSize, dataType, channels);
+  }
+  readUint8TextureAsFloat(td) {
+    const dataSize = td.shape.reduce((a, b) => a * b);
+    const data = this.glContext.readTexture(td.texture, td.width, td.height, dataSize * 4, 'byte', 4);
+    return new Float32Array(data.buffer, data.byteOffset, dataSize);
+  }
+  releaseTexture(textureData, deleteTexture) {
+    if (deleteTexture) {
+      console.log('TextureManager', `Deleting texture of size ${textureData.width}x${textureData.height}`);
+      this.glContext.deleteTexture(textureData.texture);
+    }
+  }
+  clearActiveTextures() {
+    this.glContext.clearActiveTextures();
+  }
+
   /**
    * This strategy try to find the minimal max(W,H) that fulfills (W * H == totalSize)
    */

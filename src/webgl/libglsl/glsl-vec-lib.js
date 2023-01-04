@@ -1,4 +1,4 @@
-
+import { GlslLib,GlslLibRoutine } from "./glsl-definitions.js"
 /**
  * GLSL Library responsible for vec routines
  * Vec is an varible length int array. The length is fixed at the time of

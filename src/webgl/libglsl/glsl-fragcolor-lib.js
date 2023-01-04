@@ -1,4 +1,5 @@
-
+import { GlslLib, GlslLibRoutine } from "./glsl-definitions.js"
+import { getGlsl } from "../libglsl/glsl-source.js"
 /**
  * This GLSL library handles routines around reading a texlet and writing to it
  * Reading and writing could be more than just dealing with one channel
