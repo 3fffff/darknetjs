@@ -3,6 +3,7 @@ export function pool(webgl, l) {
   const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w], l.type)
   l.artifacts = [webgl.programManager.build(glProg)]
   l.runData = createRunData(webgl, textures, glProg, l.index)
+  l.textures = textures
 }
 
 function createProgramInfo(handler, inputs, outputShape, type) {

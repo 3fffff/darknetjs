@@ -55,7 +55,7 @@ function glslSwish(type) {
   return {
     funcActivation: `
   float ${type}(float v) {
-    return v*(1.0 / (1.0 + exp(-v));
+    return v*(1.0 / (1.0 + exp(-v)));
   }
   `, nameActivation: `value = ${type}(value);`
   };

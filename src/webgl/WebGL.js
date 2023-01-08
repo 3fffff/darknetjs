@@ -177,23 +177,10 @@ export class WebGL {
   /**
    * This strategy try to find the minimal max(W,H) that fulfills (W * H == totalSize)
    */
-  computeTextureWH(shape, prefs) {
+  computeTextureWH(shape) {
     // scalar tensor
     if (shape.length === 0) return [1, 1];
     const maxTextureSize = this.glContext.maxTextureSize;
-    if (prefs) {
-      // check to see if dims fit
-      const wsize = prefs.breakAxis >= shape.length ? 1 : shape.slice(prefs.breakAxis).reduce((a, b) => a * b);
-      const hsize = prefs.breakAxis <= 0 ? 1 : shape.slice(0, prefs.breakAxis).reduce((a, b) => a * b);
-      if (wsize > maxTextureSize || hsize > maxTextureSize) {
-        // ignore preferences
-        // continue with default layout
-        console.log('TextureLayout', `Given width/height preferences were unattainable: shape:${shape}, breakAxis:${prefs.breakAxis}`);
-      }
-      else {
-        return [wsize, hsize];
-      }
-    }
     const totalSize = shape.reduce((a, b) => a * b);
     let width = Math.floor(Math.sqrt(totalSize));
     for (; width < maxTextureSize && width < totalSize; width++)

@@ -5,9 +5,10 @@ export function route(webgl, l) {
     textures.push({ groups: 0, TextureID: "t" + l.input_layers[0], shape: [l.batch, l.out_c, l.out_h, l.out_w] })
     glProg = createSplitProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.group_id * l.out_c)
   } else {
-    for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i], shape: [l.batch, l.out_c / l.input_layers.length, l.out_h, l.out_w] })
+    for (let i = 0; i < l.input_layers.length; ++i) textures.push({ groups: l.groups, TextureID: "t" + l.input_layers[i], shape: [l.batch, l.route_channels[i], l.out_h, l.out_w] })
     glProg = createProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w])
   }
+  l.textures = textures
   l.artifacts = [webgl.programManager.build(glProg)];
   l.runData = createRunData(webgl, textures, glProg, l.index)
 }

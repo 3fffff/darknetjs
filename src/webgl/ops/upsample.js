@@ -5,6 +5,7 @@ export function upsample(webgl, l) {
   const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w])
   l.artifacts = [webgl.programManager.build(glProg)];
   l.runData = createRunData(webgl, textures[0], glProg, l.index)
+  l.textures = textures
 }
 function createProgramInfo(handler, input, outputShape) {
   const inputLayout = handler.getOrCreateTextureLayout(input.TextureID, input.shape);

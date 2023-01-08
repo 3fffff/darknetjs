@@ -5,6 +5,7 @@ export function convolutional(webgl, l) {
   const textures = [{ index: l.index, activation: l.activation, TextureID: "t" + (l.index - 1), activation: l.activation, pad: l.pad, size: l.size, shape: [l.batch, l.c, l.h, l.w] },
   { batch: l.batch, filters: l.filters, size: l.size, output: l.weights, dilation: l.dilation, TextureID: 'w' + l.index, groups: l.groups, shape: [l.filters, l.c, l.size, l.size], pad: l.pad, stride_x: l.stride_x, stride_y: l.stride_y },
   { output: l.biases, TextureID: 'bias' + l.index, shape: [l.filters] }]
+  l.textures = [{ inTexture: "t" + (l.index - 1), outTexture: "im2col" + l.index }, { inTexture: "im2col" + l.index, outTexture: "t" + l.index }]
   l.artifacts = []
   if (l.groups == 1) {
     const glProg = WebGLConv.createProgramInfos(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.activation)
@@ -56,7 +57,7 @@ class WebGLConv {
       outputTextureData: outputTD,
       uniformData: {},
     } : null;
-    return [runtDataIm2Col, runDataDotProduct, runDataBN].filter(x => !!x);
+    return [runtDataIm2Col, runDataDotProduct].filter(x => !!x);
   }
   static prepKernelForDotProduct(shape, group, channels, kernel) {
     if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
@@ -89,7 +90,7 @@ function createIm2ColProgramInfo(handler, inputs, outputShape) {
   const kshape = inputs[1].shape
   const rank = outputShape.length;
   const im2colDims = WebGLConv.calcIm2ColDims(xshape, kshape, outputShape, rank);
-  const outputLayout = handler.createTextureLayoutFromShape(im2colDims, rank, [im2colDims[0], im2colDims[1], im2colDims[2], im2colDims[3] * rank], { breakAxis: 3 });
+  const outputLayout = handler.createTextureLayoutFromShape(im2colDims, rank, [im2colDims[0], im2colDims[1], im2colDims[2], im2colDims[3] * rank]);
   const shaderSource = `
     const int XC = ${xshape[1]};
     const int XH = ${xshape[2]};
@@ -145,7 +146,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
   const xshape = inputs[0].shape
   const kshape = inputs[1].shape
   const adjustedKernelShape = [kshape[0], Math.ceil((xshape[1] * kshape[2] * kshape[3]) / (xshape.length * inputs[1].groups))];
-  const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length * inputs[1].groups], { breakAxis: 1 });
+  const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length * inputs[1].groups]);
   const rank = outputShape.length;
   const inputLayouts = [im2colLayout, kLayout];
   let bLayout;
