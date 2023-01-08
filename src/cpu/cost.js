@@ -1,6 +1,5 @@
 export function cost(layers) {
   const l = this
-  const cost_type = []
   if (!l.truth) return;
   if (l.cost_type == MASKED) {
     for (let i = 0; i < l.batch * l.inputs; ++i) {

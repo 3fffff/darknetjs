@@ -22,6 +22,7 @@ export function deconvolutional(options) {
   l.stride_y = stride_y;
   l.size = size;
   l.pad = padding;
+  l.groups = "groups" in options ? parseInt(options["groups"]) : 1; 
   l.batch_normalize = "batch_normalize" in options ? parseInt(options["batch_normalize"]) : 0;
   l.dilation = "dilation" in options ? parseInt(options["dilation"]) : 1;
 

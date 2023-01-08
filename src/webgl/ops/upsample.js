@@ -1,4 +1,5 @@
 import { getGlsl } from "../libglsl/glsl-source.js"
+
 export function upsample(webgl, l) {
   const textures = [{ TextureID: "t" + (l.index - 1), scale: 1, stride: l.stride, shape: [l.batch, l.c, l.h, l.w] }]
   const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w])
@@ -8,12 +9,10 @@ export function upsample(webgl, l) {
 function createProgramInfo(handler, input, outputShape) {
   const inputLayout = handler.getOrCreateTextureLayout(input.TextureID, input.shape);
   const outputLayout = handler.createTextureLayoutFromShape(outputShape);
-  const glsl = getGlsl(handler.glContext.version);
   const dim = outputShape.length
   const precalculatedPitches = shaderPrecalculatedPitches(dim, outputShape, input.shape);
-  const getInputFloatFunction = shaderGetInputFloatFunction(inputLayout, glsl);
+  const glsl = getGlsl(handler.glContext.version)
   const shaderSource = `
-    ${getInputFloatFunction}
     float process(int indices[${dim}]) {
       int output_index = coordsToOffset(TexCoords, ${outputLayout.width}, ${outputLayout.height});
       ${precalculatedPitches}
@@ -22,7 +21,8 @@ function createProgramInfo(handler, input, outputShape) {
       int h = m / output_pitches[${dim - 2}];
       int w = m - h * output_pitches[${dim - 2}];
       int input_index = imageid * input_pitches[${dim - 3}] + int(h/${input.stride}) * input_pitches[${dim - 2}] + int(w/${input.stride});
-      return float(${input.scale}) * getInputFloat(input_index);
+      vec2 input_coord = offsetToCoords(input_index, ${inputLayout.width}, ${inputLayout.height});
+      return float(${input.scale}) * getColorAsFloat(${glsl.texture2D}(X, input_coord));
     }`
   return {
     inputLayouts: [inputLayout],
@@ -54,13 +54,4 @@ function shaderPrecalculatedPitches(dim, outputShape, inputShape) {
         `;
   }
   return precalculatedPitches;
-}
-function shaderGetInputFloatFunction(inputLayout, glsl) {
-  return `
-float getInputFloat(int index) {
-  vec2 coords = offsetToCoords(index, ${inputLayout.width}, ${inputLayout.height});
-  float value = getColorAsFloat(${glsl.texture2D}(X, coords));
-  return value;
-}
-`;
 }

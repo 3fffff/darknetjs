@@ -1,4 +1,5 @@
 import { getGlsl } from "../libglsl/glsl-source.js"
+
 export function sum(webgl, l) {
   const textures = [{ TextureID: "t" + (l.index - 1), shape: [l.batch, l.c, l.h, l.w] }, { TextureID: "t" + l.indexs, shape: [l.batch, l.c, l.h, l.w] }]
   const glProg = createProgramInfo(webgl, textures, [l.batch, l.out_c, l.out_h, l.out_w], l.type.toUpperCase())
@@ -21,6 +22,15 @@ function createProgramInfo(handler, inputs, outputShape, type) {
     }`,
     hasMain: true
   };
+}
+
+function createRunData(handler, textures, glProg, outTextureID) {
+  const inputTDs = textures.map((t, i) => handler.getOrCreateTextureData(t, glProg.inputLayouts[i]));
+  return [{
+    inputTextureDatas: inputTDs,
+    outputTextureData: handler.createTextureDataFromLayout(glProg.outputLayout, 'float32', "t" + outTextureID),
+    uniformData: {}
+  }];
 }
 
 function getSamOrShortcut(type) {

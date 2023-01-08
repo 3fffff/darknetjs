@@ -1,6 +1,6 @@
 import { layersDefinition } from "./layers.js";
 
-export default function parse_network_cfg(filename, weights, quant) {
+export default function parse_network_cfg(filename, weights, quant, train = false) {
   const sections = read_cfg(filename);
   const layers = [];
   if (sections[0].type == "[net]" && sections[0].type == "[network]") throw new Error("First section must be [net] or [network]");
@@ -8,7 +8,7 @@ export default function parse_network_cfg(filename, weights, quant) {
   net.out_w = "width" in sections[0].options ? parseInt(sections[0].options["width"]) : 1;
   net.out_h = "height" in sections[0].options ? parseInt(sections[0].options["height"]) : 1;
   net.out_c = "channels" in sections[0].options ? parseInt(sections[0].options["channels"]) : 1;
-  net.batch = "batch" in sections[0].options ? parseInt(sections[0].options["batch"]) : 1;
+  net.batch = train ? "batch" in sections[0].options ? parseInt(sections[0].options["batch"]) : 1 : 1;
   net.train = "train" in sections[0].options ? parseInt(sections[0].options["train"]) : 0;
   net.quant = quant
   if (quant) {
@@ -21,15 +21,21 @@ export default function parse_network_cfg(filename, weights, quant) {
   for (let i = 1; i < sections.length; i++) {
     sections[i].options.index = i
     sections[i].options.batch = net.batch
-    const lo = "layers" in sections[i].options ? sections[i].options["layers"].split(',') : false;
-    let route_index = 0
-    if (lo) {
-      const index = parseInt(lo[0]);
-      route_index = (index < 0) ? sections[i].options.index + index : index + 1;
+    const route_layers = "layers" in sections[i].options ? sections[i].options["layers"].split(',') : false;
+    if (route_layers) {
+      sections[i].options.route_channels = []
+      for (let j = 0; j < route_layers.length; j++) {
+        const index = parseInt(route_layers[j]);
+        const route_index = (index < 0) ? sections[i].options.index + index : index + 1;
+        sections[i].options.route_channels.push(layers[route_index].out_c)
+        sections[i].options.width = parseInt(layers[route_index].out_w)
+        sections[i].options.height = parseInt(layers[route_index].out_h)
+      }
+    } else {
+      sections[i].options.channels = parseInt(layers[i - 1].out_c)
+      sections[i].options.width = parseInt(layers[i - 1].out_w)
+      sections[i].options.height = parseInt(layers[i - 1].out_h)
     }
-    sections[i].options.width = parseInt(layers[!lo ? layers.length - 1 : route_index].out_w)
-    sections[i].options.height = parseInt(layers[!lo ? layers.length - 1 : route_index].out_h)
-    sections[i].options.channels = parseInt(layers[!lo ? layers.length - 1 : route_index].out_c)
 
     let l = layersDefinition[sections[i].type.toUpperCase()](sections[i].options);
     l.dontload = "dontload" in sections[i].options ? sections[i].options["dontload"] : 0;
@@ -38,7 +44,6 @@ export default function parse_network_cfg(filename, weights, quant) {
     layers.push(l);
   }
   load_weights_upto_cpu(layers, weights, 1, net.quant)
-  //console.log(layers)
   return layers
 }
 

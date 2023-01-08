@@ -4,6 +4,7 @@ import { convolutional } from './webgl/ops/conv.js'
 import { route } from './webgl/ops/route.js'
 import { scale_channels } from './webgl/ops/scale_channels.js'
 import { softmax } from './webgl/ops/softmax.js'
+import { sum } from './webgl/ops/sum.js'
 import { upsample } from './webgl/ops/upsample.js'
 
 export const layersWebGL = {
@@ -15,5 +16,7 @@ export const layersWebGL = {
   'ROUTE': route,
   'UPSAMPLE': upsample,
   'SCALE_CHANNELS': scale_channels,
-  'YOLO': (webgl, l) => { }
+  'SHORTCUT':sum,
+  'SAM':sum,
+  'YOLO': () => { }
 }

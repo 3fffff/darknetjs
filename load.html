@@ -147,26 +147,21 @@
     loadModel[0].output = ImageProcess.resize_image(img, loadModel[0].out_w, loadModel[0].out_h, width, height, channels, loadModel[0].quant)
     //for(let i=0;i<loadModel[0].output.length;i++)loadModel[0].output[i] = 0
     console.time()
-    //for (let i = 1; i < loadModel.length; ++i)await loadModel[i].forward(loadModel)
-    forwardWebgl(loadModel)
+    for (let i = 1; i < loadModel.length; ++i)await loadModel[i].forward(loadModel)
+    //forwardWebgl(loadModel)
     console.timeEnd()
-  }
-  function forwardWebglYolo(layers) {
-    const l = this
-    const len = layers[l.index - 1].runData.length
-    l.output = layers[l.index - 1].runData[len - 1].outputTextureData.gldata()
   }
   function forwardWebgl(layers) {
     layers[0].webgl.initFirstTexture(layers[1].runData[0].inputTextureDatas[0], layers[0].output)
     for (let i = 1; i < layers.length; i++) {
       const l = layers[i]
       if (l.type == "YOLO") {
-        //l.output = layers[i - 1].runData[1].outputTextureData.gldata()
+        l.output = layers[i - 1].runData[1].outputTextureData.gldata()
         continue
       }
       for (let j = 0; j < l.artifacts.length; j++) {
         layers[0].webgl.programManager.run(l.artifacts[j], l.runData[j]);
-        //l.output = l.runData[j].outputTextureData.gldata()
+        l.output = l.runData[j].outputTextureData.gldata()
       }
     }
   }

@@ -1,4 +1,4 @@
-export function pool(webgl,l){
+export function pool(webgl, l) {
   const textures = [{ TextureID: "t" + (l.index - 1), pad: l.pad, size: l.size, stride_x: l.stride_x, stride_y: l.stride_x, shape: [l.batch, l.c, l.h, l.w] }]
   const glProg = createProgramInfo(webgl, textures[0], [l.batch, l.out_c, l.out_h, l.out_w], l.type)
   l.artifacts = [webgl.programManager.build(glProg)]

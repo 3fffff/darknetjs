@@ -1,4 +1,5 @@
 import { getGlsl } from "../libglsl/glsl-source.js"
+
 export function softmax(webgl, l) {
   const textures = [{ TextureID: "t" + (l.index - 1), shape: [1, l.weights.length] }]
   const glProg = createProgramInfos(webgl, l)

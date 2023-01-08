@@ -26,7 +26,7 @@ class WebGLConv {
     const im2colProgramInfo = createIm2ColProgramInfo(handler, inputs, outputShape);
     const dotProductProgramInfo = createDotProductProgramInfo(handler, im2colProgramInfo.outputLayout, inputs, outputShape, activation);
     const BNProgramInfo = batch_normalize ? createProgramInfoBatch(handler, dotProductProgramInfo.outputLayout, inputs, outputShape, activation) : null;
-    return [im2colProgramInfo, dotProductProgramInfo].filter(x => !!x);
+    return [im2colProgramInfo, dotProductProgramInfo, BNProgramInfo].filter(x => !!x);
   }
   static createRunDatas(handler, textures, glProg, outTextureID, batch_normalize) {
     const b = textures.length >= 3 ? textures[2] : undefined;
@@ -56,7 +56,7 @@ class WebGLConv {
       outputTextureData: outputTD,
       uniformData: {},
     } : null;
-    return [runtDataIm2Col, runDataDotProduct].filter(x => !!x);
+    return [runtDataIm2Col, runDataDotProduct, runDataBN].filter(x => !!x);
   }
   static prepKernelForDotProduct(shape, group, channels, kernel) {
     if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
@@ -185,8 +185,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
     inputLayouts: inputs.length === 3 ? [im2colLayout, kLayout, bLayout] : [im2colLayout, kLayout],
     outputLayout,
     shaderSource,
-    samplers,
-    params: { 'sharedDim': sharedDim }
+    samplers
   };
 }
 
@@ -211,7 +210,7 @@ function createGroupConvProgramInfo(handler, inputs, outputShape, activation, ba
   const processBias = hasBias ? `value += getBias(output_channel);` : ``;
   const xShape = inputs[0].shape;
   const wShape = inputs[1].shape;
-  wShape[0] /= inputs[1].groups;
+  const outputChannelsPerGroup = wShape[0] / inputs[1].groups;
   const glsl = getGlsl(handler.glContext.version);
   const samplers = hasBias ? ['X', 'W', 'Bias'] : ['X', 'W']
   const shaderSource = `
@@ -223,7 +222,7 @@ function createGroupConvProgramInfo(handler, inputs, outputShape, activation, ba
     int batch = coords.x;
     int output_channel = coords.y;
     ivec2 xRCCorner = coords.zw * strides - pads;
-    int group_id = output_channel / ${wShape[0]};
+    int group_id = output_channel / ${outputChannelsPerGroup};
     float value = 0.0;
     for (int wInChannel = 0; wInChannel < ${wShape[1]}; wInChannel++) {
       int input_channel = group_id * ${wShape[1]} + wInChannel;

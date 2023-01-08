@@ -1,3 +1,5 @@
+import { getGlActivation } from "./activation.js"
+
 export function connected(webgl, l) {
   const textures = [{ TextureID: "tw" + l.index, shape: [l.weights.length, 1], output: l.weights }, { TextureID: "t" + (l.index - 1), shape: [1, l.weights.length] }]
   const glProg = createProgramInfo(webgl, l)
@@ -6,10 +8,13 @@ export function connected(webgl, l) {
 }
 
 function createProgramInfo(handler, inputs, outputShape) {
+  const { funcActivation, nameActivation } = activation == "LINEAR" ? { funcActivation: ``, nameActivation: `` } : getGlActivation(activation)
+  const hasBias = inputs.length > 2;
+  const processBias = hasBias ? `value += getBias();` : ``;
   const sharedDim = inputs[0].shape[inputs[0].length - 1];
-  const line = `value += _A(a) * _B(b);`;
   const rank = outputShape.length;
   const shaderSource = `
+  ${funcActivation}
     float process(int indices[${rank}]) {
         int a[${rank}];
         int b[${rank}];
@@ -21,8 +26,10 @@ function createProgramInfo(handler, inputs, outputShape) {
         for (int k=0; k<${sharedDim}; ++k) {
             a[${rank - 1}] = k;
             b[${rank - 2}] = k;
-            ${line}
+            value += _A(a) * _B(b);
         }
+        ${processBias}
+        ${nameActivation}
         return value;
     }`;
   const inputLayouts = inputs.map(t => handler.getOrCreateTextureLayout(t.TextureID, t.shape));
