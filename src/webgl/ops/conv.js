@@ -31,13 +31,7 @@ class WebGLConv {
   }
   static createRunDatas(handler, textures, glProg, outTextureID, batch_normalize) {
     const b = textures.length >= 3 ? textures[2] : undefined;
-    let kTD = handler.getTextureData(textures[1].TextureID);
-    if (!kTD) {
-      //console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
-      const newKernelData = WebGLConv.prepKernelForDotProduct(textures[1].shape, textures[1].groups, 4, textures[1].output);
-      // hack: should use graph transformer to rewrite initializer K
-      kTD = handler.createTextureDataFromLayoutBindTensor(glProg[1].inputLayouts[1], 'float32', newKernelData, textures[1]);
-    }
+    const kTD = handler.getOrCreateTextureData(textures[1], glProg[1].inputLayouts[1], textures[1].shape);
     const runtDataIm2Col = {
       inputTextureDatas: [handler.getOrCreateTextureData(textures[0], null, textures[0].shape)],
       outputTextureData: handler.createTextureDataFromLayout(glProg[0].outputLayout, 'float32', "im2col" + outTextureID),
@@ -58,20 +52,6 @@ class WebGLConv {
       uniformData: {},
     } : null;
     return [runtDataIm2Col, runDataDotProduct].filter(x => !!x);
-  }
-  static prepKernelForDotProduct(shape, group, channels, kernel) {
-    if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
-    const numFeatureMaps = shape[0];
-    const oldRowSize = shape[1] * shape[2] * shape[3];
-    const newRowSize = Math.ceil(oldRowSize * group / channels) * channels;
-    const newSize = numFeatureMaps * newRowSize;
-    const buffer = new Float32Array(newSize);
-    for (let f = 0; f < numFeatureMaps; ++f) {
-      const oldOffset = f * oldRowSize;
-      const newOffset = f * newRowSize + f % group * oldRowSize;
-      buffer.set(kernel.subarray(oldOffset, oldOffset + oldRowSize), newOffset);
-    }
-    return buffer;
   }
   static calcIm2ColDims(inputShape, kernelShape, outputShape, channels = 1) {
     return [
@@ -183,7 +163,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
     return value;
   }`;
   return {
-    inputLayouts: inputs.length === 3 ? [im2colLayout, kLayout, bLayout] : [im2colLayout, kLayout],
+    inputLayouts,
     outputLayout,
     shaderSource,
     samplers

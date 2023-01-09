@@ -101,7 +101,7 @@
       loadModel = createLayers(fileContents, weights, false)
       loadModel[0].webgl = new WebGL('webgl2')
       for (let i = 1; i < loadModel.length; i++) {
-        loadModel[i].forward = layersForward[loadModel[i].type]
+        //loadModel[i].forward = layersForward[loadModel[i].type]
         layersWebGL[loadModel[i].type](loadModel[0].webgl, loadModel[i])
       }
       console.log(loadModel)
@@ -156,13 +156,13 @@
     for (let i = 1; i < layers.length; i++) {
       const l = layers[i]
       if (l.type == "YOLO") {
-       // l.output = layers[i - 1].runData[1].outputTextureData.gldata()
+        l.output = layers[i - 1].runData[1].outputTextureData.gldata()
         continue
       }
       for (let j = 0; j < l.artifacts.length; j++) {
         //layers[0].webgl.programManager.run(l.artifacts[j], layers[0].webgl.getTextureData(l.textures[j].TextureID));
         layers[0].webgl.programManager.run(l.artifacts[j], l.runData[j]);
-        //l.output = l.runData[j].outputTextureData.gldata()
+        l.output = l.runData[j].outputTextureData.gldata()
       }
     }
   }
