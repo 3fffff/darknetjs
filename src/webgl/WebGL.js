@@ -61,8 +61,20 @@ export class WebGL {
    * Usage = Encoder.Usage.Default.
    * @param dataType the tensor data type
    */
-  createTextureDataFromLayout(layout, dataType, TextureID) {
-    return this.createTextureData(layout, dataType, TextureID);
+  createTextureDataFromLayout(layout, dataType,TextureID) {
+    return this.createTextureData(layout, dataType,TextureID);
+  }
+  /**
+   * Create a TextureData object using the given data and bind to the given tensor.
+   * Usage = Encoder.Usage.UploadOnly.
+   * NOTE: this function is a hack for Conv implementation. should remove this function, after rewriting Conv
+   * implementation by Graph.Transformer
+   * @param dataType the tensor data type
+   * @param data the actual data to upload
+   * @param tensor the tensor to bind. tensor's data is ignored.
+   */
+  createTextureDataFromLayoutBindTensor(layout, dataType, data, tensor) {
+    return this.createTextureData(layout, dataType, tensor.TextureID, data, tensor, 1 /* UploadOnly */);
   }
   createTextureData(layout, dataType = 'float32', TextureID, data, usage) {
     //console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
@@ -80,7 +92,11 @@ export class WebGL {
     return this.createTextureDataFromTexture(layout, dataType, texture, tensorId);
   }
   createTextureDataFromTexture(layout, dataType, texture, tensorId) {
-    const textureData = Object.assign(Object.assign({}, layout), { texture, dataType });
+    const textureData = Object.assign(Object.assign({}, layout), {
+      gldata: () => {
+        return this.readTexture(textureData);
+      }, texture
+    });
     this.setTextureData(tensorId, textureData);
     return textureData;
   }

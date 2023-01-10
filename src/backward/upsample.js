@@ -7,4 +7,5 @@ export function upsample(layers) {
         for (let i = 0; i < l.w * l.stride; ++i)
           l.delta[b * l.w * l.h * l.c * l.stride * l.stride + k * l.w * l.h * l.stride * l.stride + j * l.w * l.stride + i] =
             l.scale * input[b * l.w * l.h * l.c + k * l.w * l.h + ~~(j / l.stride) * l.w + ~~(i / l.stride)];
+
 }
