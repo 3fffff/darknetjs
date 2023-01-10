@@ -11,6 +11,7 @@ export function upsample(options) {
   l.out_w = l.w * stride;
   l.out_h = l.h * stride;
   l.out_c = l.c;
+  l.fwrd = true
   if (stride < 0) {
     stride = (-1) * stride;
     l.reverse = 1;

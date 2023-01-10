@@ -26,11 +26,11 @@ extern "C"
                   const int32_t, const int32_t);
   void connected_imp(float *, int *, float *, int *, float *, int *, float *, int, float *, float *, float *);
   void matmul(float *, float *, float *, const int32_t, const int32_t, const int32_t);
- /* void convdw3x3s1(float *const &, const int &, const int &, const int &, float *const &,
-                   float *&, const int &, const int &, const int &, float *const &);
-  void convdw3x3s2(float *const &, const int &, const int &, const int &, float *const &,
-                   float *&, const int &, const int &, const int &, float *const &);*/
-  void reorder_a_4(const float * , int , int , int , float *);
+  /* void convdw3x3s1(float *const &, const int &, const int &, const int &, float *const &,
+                    float *&, const int &, const int &, const int &, float *const &);
+   void convdw3x3s2(float *const &, const int &, const int &, const int &, float *const &,
+                    float *&, const int &, const int &, const int &, float *const &);*/
+  void reorder_a_4(const float *, int, int, int, float *);
   void pool2D_f32_imp(float *, int *, float *, int *, int, int *, int *, bool);
   float *activate(float *, const int, const int);
   void add_bias(float *, const float *, const int32_t, const int32_t, float *, float *, float *);
@@ -76,7 +76,7 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
   const int kernel_dim = input_channels / groups * filter_height * filter_width;
   const int col_buffer_size = kernel_dim * output_image_size;
   const int out_size = output_height * output_width;
-  
+
   for (int n = 0; n < input_num; ++n)
   {
     /*if (strides[0] == 1 && strides[1] == 1 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
@@ -85,7 +85,7 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
       Y = activate(Y, output_size, active);
       return;
     }
-    else 
+    else
     if (strides[0] == 2 && strides[1] == 2 && groups != 1 && filter_height == 3 && filter_width == 3 && scales == nullptr)
     {
       convdw3x3s2(X, input_width, input_height, groups, W, Y, output_width, output_height, output_channels, bias);
@@ -94,20 +94,20 @@ void conv2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape, float *Y,
     }
     else
     {*/
-      float *col_buffer_data = new float[col_buffer_size];
-      for (int group = 0; group < groups; ++group)
-      {
-        im2col_f32(X + X_offset * group, col_buffer_data, input_channels / groups, input_height,
-                   input_width, filter_height, filter_width, dilations[0],
-                   dilations[1], pads[0], pads[1], pads[2], pads[3], strides[0],
-                   strides[1]);
-        matmul(W + W_offset * group, col_buffer_data, Y + Y_offset * group, filter_num / groups, output_height * output_width, kernel_dim);
-      }
-      delete[] col_buffer_data;
-      if (bias != nullptr)
-        add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
-      Y = activate(Y, output_size, active);
-   // }
+    float *col_buffer_data = new float[col_buffer_size];
+    for (int group = 0; group < groups; ++group)
+    {
+      im2col_f32(X + X_offset * group, col_buffer_data, input_channels / groups, input_height,
+                 input_width, filter_height, filter_width, dilations[0],
+                 dilations[1], pads[0], pads[1], pads[2], pads[3], strides[0],
+                 strides[1]);
+      matmul(W + W_offset * group, col_buffer_data, Y + Y_offset * group, filter_num / groups, output_height * output_width, kernel_dim);
+    }
+    delete[] col_buffer_data;
+    if (bias != nullptr)
+      add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
+    activate(Y, output_size, active);
+    // }
   }
 }
 
@@ -164,7 +164,7 @@ void convTranspose2D_f32_imp(float *X, int *X_shape, float *W, int *W_shape,
   }
   if (bias != nullptr)
     add_bias(Y, bias, filter_num, out_size, scales, mean, variance);
-  Y = activate(Y, output_size, active);
+  activate(Y, output_size, active);
   delete[] col_buffer_data;
 }
 
@@ -244,9 +244,13 @@ void pool2D_f32_imp(float *X, int *X_shape, float *Y,
         for (int pw = 0; pw < pooled_width; ++pw)
         {
           const int pool_index = ph * pooled_width + pw;
-          if (type == 3) {
-              for (let i = 0; i < height*width; ++i) Y[pool_index] += (X[ph + height*width * (c + n * channels)]) / (height*width);
-          }else{ 
+          if (type == 3)
+          {
+            for (let i = 0; i < height * width; ++i)
+              Y[pool_index] += (X[ph + height * width * (c + n * channels)]) / (height * width);
+          }
+          else
+          {
             int wstart = pw * stride_w - pads[1];
             int wend = std::min(wstart + size, width);
             wstart = std::max(wstart, 0);
@@ -275,10 +279,10 @@ static inline float logistic_activate(float x)
 {
   return 1.f / (1.f + expf(-x));
 }
-static inline float relu_activate(float x) { return x * (x > 0); }
-static inline float leaky_activate(float x) { return (x > 0) ? x : 0.1 * x; }
-static inline float tanh_activate(float x) { return (2 / (1 + expf(-2 * x)) - 1); }
-static inline float softplus_activate(float x, float threshold)
+static inline void relu_activate(float& x) { x= x * (x > 0); }
+static inline void leaky_activate(float& x) { x = (x > 0) ? x : 0.1 * x; }
+static inline void tanh_activate(float& x) { x = (2 / (1 + expf(-2 * x)) - 1); }
+static inline float softplus_activate(float& x, float threshold)
 {
   if (x > threshold)
     return x; // too large
@@ -295,44 +299,38 @@ static inline float swish_activate(float x)
 {
   return x * logistic_activate(x);
 }
-float *activate(float *x, const int length, const int a)
+void *activate(float *x, const int length, const int activation)
 {
-  switch (a)
+  switch (activation)
   {
   case 1:
     for (int i = 0; i < length; i++)
-      x[i] = logistic_activate(x[i]);
-    return x;
+     logistic_activate(x[i]);
   case 2:
     for (int i = 0; i < length; i++)
-      x[i] = relu_activate(x[i]);
-    return x;
+      relu_activate(x[i]);
   case 3:
     for (int i = 0; i < length; i++)
-      x[i] = leaky_activate(x[i]);
-    return x;
+      leaky_activate(x[i]);
   case 4:
     for (int i = 0; i < length; i++)
-      x[i] = mish_activate(x[i]);
-    return x;
+      mish_activate(x[i]);
   case 5:
     for (int i = 0; i < length; i++)
-      x[i] = swish_activate(x[i]);
-    return x;
+      swish_activate(x[i]);
   }
-  return x;
 }
 
-void macro(int M, int N, int K, const float * A, 
-    const float * B, int ldb, float * bufB, bool reorderB, float * C, int ldc)
+void macro(int M, int N, int K, const float *A,
+           const float *B, int ldb, float *bufB, bool reorderB, float *C, int ldc)
 {
-    for (int j = 0; j < N; j += 8)
-    {
-        if(reorderB)
-            reorder_b_8(K, B + j, ldb, bufB + K*j);
-        for (int i = 0; i < M; i += 4)
-            micro_4x8(K, A + i*K, 1, 4, bufB + K*j, 8, C + i*ldc + j, ldc);
-    }
+  for (int j = 0; j < N; j += 8)
+  {
+    if (reorderB)
+      reorder_b_8(K, B + j, ldb, bufB + K * j);
+    for (int i = 0; i < M; i += 4)
+      micro_4x8(K, A + i * K, 1, 4, bufB + K * j, 8, C + i * ldc + j, ldc);
+  }
 }
 
 void matmul(float *A, float *B, float *C, const int M, const int N, const int K)
@@ -340,7 +338,7 @@ void matmul(float *A, float *B, float *C, const int M, const int N, const int K)
   const int alignedN = N - N % 8;
   const int alignedM = M - M % 4;
   const int alignedK = K - K % 4;
-  const int L1 = 32 * 1024, L2 = 256*1024, L3 = 2*1024*1024;
+  const int L1 = 32 * 1024, L2 = 256 * 1024, L3 = 2 * 1024 * 1024;
   int mK = std::min(L1 / 4 / 4, alignedK) / 4 * 4;
   int mM = std::min(L2 / 4 / mK, alignedM) / 4 * 4;
   int mN = std::min(L3 / 4 / mK, alignedN) / 8 * 8;
@@ -356,8 +354,8 @@ void matmul(float *A, float *B, float *C, const int M, const int N, const int K)
       {
         int dM = std::min(alignedM, i + mM) - i;
         reorder_a_4(A + i * K + k, K, dM, dK, bufA.p);
-        macro(dM, dN, dK, bufA.p, B + k * N + j, N, 
-                  bufB.p, i == 0, C + i * N + j, N);
+        macro(dM, dN, dK, bufA.p, B + k * N + j, N,
+              bufB.p, i == 0, C + i * N + j, N);
       }
     }
   }
@@ -438,21 +436,21 @@ void reorder_b_8(int K, const float *B, int ldb, float *bufB)
   }
 }
 
-void reorder_a_4(const float * A, int lda, int M, int K, float * bufA)
+void reorder_a_4(const float *A, int lda, int M, int K, float *bufA)
 {
   for (int i = 0; i < M; i += 4)
   {
     for (int k = 0; k < K; k += 4)
     {
-      const float * pA = A + k;
+      const float *pA = A + k;
       v128_t s0 = wasm_v128_load(pA + 0 * stride);
       v128_t s1 = wasm_v128_load(pA + 1 * stride);
       v128_t s2 = wasm_v128_load(pA + 2 * stride);
       v128_t s3 = wasm_v128_load(pA + 3 * stride);
       const v128_t s00 = wasm_v32x4_shuffle(s0, s1, 0, 4, 1, 5);
-	    const v128_t s01 = wasm_v32x4_shuffle(s2, s3, 0, 4, 1, 5);
-	    const v128_t s10 = wasm_v32x4_shuffle(s0, s1, 2, 6, 3, 7);
-	    const v128_t s11 = wasm_v32x4_shuffle(s2, s3, 2, 6, 3, 7);
+      const v128_t s01 = wasm_v32x4_shuffle(s2, s3, 0, 4, 1, 5);
+      const v128_t s10 = wasm_v32x4_shuffle(s0, s1, 2, 6, 3, 7);
+      const v128_t s11 = wasm_v32x4_shuffle(s2, s3, 2, 6, 3, 7);
       wasm_v128_store(bufA + 0, wasm_v32x4_shuffle(s00, s01, 0, 1, 4, 5));
       wasm_v128_store(bufA + 4, wasm_v32x4_shuffle(s00, s01, 2, 3, 6, 7));
       wasm_v128_store(bufA + 8, wasm_v32x4_shuffle(s10, s11, 0, 1, 4, 5));

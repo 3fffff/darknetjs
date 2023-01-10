@@ -31,13 +31,7 @@ class WebGLConv {
   }
   static createRunDatas(handler, textures, glProg, outTextureID, batch_normalize) {
     const b = textures.length >= 3 ? textures[2] : undefined;
-    let kTD = handler.getTextureData(textures[1].TextureID);
-    if (!kTD) {
-      //console.log('Conv', 'Did not find the adjustedKernel texture in the cache. Creating new.');
-      const newKernelData = WebGLConv.prepKernelForDotProduct(textures[1].shape, textures[1].groups, 4, textures[1].output);
-      // hack: should use graph transformer to rewrite initializer K
-      kTD = handler.createTextureDataFromLayoutBindTensor(glProg[1].inputLayouts[1], 'float32', newKernelData, textures[1]);
-    }
+    const kTD = handler.getOrCreateTextureData(textures[1], glProg[1].inputLayouts[1], textures[1].shape);
     const runtDataIm2Col = {
       inputTextureDatas: [handler.getOrCreateTextureData(textures[0], null, textures[0].shape)],
       outputTextureData: handler.createTextureDataFromLayout(glProg[0].outputLayout, 'float32', "im2col" + outTextureID),
@@ -51,38 +45,13 @@ class WebGLConv {
       outputTextureData: outputTD,
       uniformData: {},
     };
-    const inputATDs = [runtDataIm2Col.outputTextureData, kTD];
-    const runDataBN = batch_normalize ? {
-      inputTextureDatas: inputATDs,
-      outputTextureData: outputTD,
-      uniformData: {},
-    } : null;
     return [runtDataIm2Col, runDataDotProduct].filter(x => !!x);
-  }
-  static prepKernelForDotProduct(shape, group, channels, kernel) {
-    if (group === 1 && (channels === 1 || (shape[2] * shape[3]) % channels === 0)) return kernel;
-    const numFeatureMaps = shape[0];
-    const oldRowSize = shape[1] * shape[2] * shape[3];
-    const newRowSize = Math.ceil(oldRowSize * group / channels) * channels;
-    const newSize = numFeatureMaps * newRowSize;
-    const buffer = new Float32Array(newSize);
-    for (let f = 0; f < numFeatureMaps; ++f) {
-      const oldOffset = f * oldRowSize;
-      const newOffset = f * newRowSize + f % group * oldRowSize;
-      buffer.set(kernel.subarray(oldOffset, oldOffset + oldRowSize), newOffset);
-    }
-    return buffer;
   }
   static calcIm2ColDims(inputShape, kernelShape, outputShape, channels = 1) {
     return [
       outputShape[0], outputShape[2], outputShape[3],
       Math.ceil(inputShape[1] * kernelShape[2] * kernelShape[3] / channels)
     ];
-  }
-  static calcSharedDimReadSize(preferredBatchSize, sharedDim) {
-    if (preferredBatchSize <= 0 || sharedDim < preferredBatchSize || sharedDim % preferredBatchSize !== 0)
-      return sharedDim;
-    return preferredBatchSize;
   }
 }
 function createIm2ColProgramInfo(handler, inputs, outputShape) {
@@ -149,11 +118,8 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
   const kLayout = handler.createTextureLayoutFromShape(adjustedKernelShape, xshape.length, [adjustedKernelShape[0], adjustedKernelShape[1] * xshape.length * inputs[1].groups]);
   const rank = outputShape.length;
   const inputLayouts = [im2colLayout, kLayout];
-  let bLayout;
-  if (inputs.length === 3) {
-    bLayout = handler.createTextureLayoutFromShape(inputs[2].shape);
-    inputLayouts.push(bLayout);
-  }
+  if (inputs.length === 3) 
+    inputLayouts.push(handler.createTextureLayoutFromShape(inputs[2].shape));
   const outputLayout = handler.createTextureLayoutFromShape(outputShape);
   const initValue = (inputs.length < 3) ? '0.0' : '_B(b)';
   const sharedDim = Math.ceil(xshape[1] * kshape[2] * kshape[3] / (4 * inputs[1].groups * inputs[1].groups));
@@ -183,7 +149,7 @@ function createDotProductProgramInfo(handler, im2colLayout, inputs, outputShape,
     return value;
   }`;
   return {
-    inputLayouts: inputs.length === 3 ? [im2colLayout, kLayout, bLayout] : [im2colLayout, kLayout],
+    inputLayouts,
     outputLayout,
     shaderSource,
     samplers

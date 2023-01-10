@@ -1,5 +1,5 @@
-import {WebGLContext} from "./webgl-context.js"
-import {ProgramManager} from "./program-manager.js"
+import { WebGLContext } from "./webgl-context.js"
+import { ProgramManager } from "./program-manager.js"
 
 export class WebGL {
   static cache = {}
@@ -20,7 +20,6 @@ export class WebGL {
     return this.textureDataCache.get(tensorId);
   }
   setTextureData(tensorId, textureData) {
-    //console.log('Storing Texture data in cache');
     this.textureDataCache.set(tensorId, textureData);
   }
   dispose() {
@@ -46,10 +45,10 @@ export class WebGL {
    *   Creates a texture data object associated with the given tensor.
    * @param tensor the tensor with data to upload
    */
-  getOrCreateTextureData(tensor, layout,dim) {
+  getOrCreateTextureData(tensor, layout, dim) {
     let td = this.getTextureData(tensor.TextureID);
     if (!td) {
-      console.log(`Creating new TextureData for layer: [${tensor.TextureID}]`);
+      //console.log(`Creating new TextureData for layer: [${tensor.TextureID}]`);
       if (!layout) layout = this.createTextureLayoutFromShape(dim);
       // graph inputs or initializers
       td = this.createTextureData(layout, 'float', tensor.TextureID, tensor.output, tensor, 1);
@@ -62,20 +61,8 @@ export class WebGL {
    * Usage = Encoder.Usage.Default.
    * @param dataType the tensor data type
    */
-  createTextureDataFromLayout(layout, dataType,TextureID) {
-    return this.createTextureData(layout, dataType,TextureID);
-  }
-  /**
-   * Create a TextureData object using the given data and bind to the given tensor.
-   * Usage = Encoder.Usage.UploadOnly.
-   * NOTE: this function is a hack for Conv implementation. should remove this function, after rewriting Conv
-   * implementation by Graph.Transformer
-   * @param dataType the tensor data type
-   * @param data the actual data to upload
-   * @param tensor the tensor to bind. tensor's data is ignored.
-   */
-  createTextureDataFromLayoutBindTensor(layout, dataType, data, tensor) {
-    return this.createTextureData(layout, dataType, tensor.TextureID, data, tensor, 1 /* UploadOnly */);
+  createTextureDataFromLayout(layout, dataType, TextureID) {
+    return this.createTextureData(layout, dataType, TextureID);
   }
   createTextureData(layout, dataType = 'float32', TextureID, data, usage) {
     //console.log(`Creating TextureData: layout:[${JSON.stringify(layout)}]`);
@@ -93,18 +80,14 @@ export class WebGL {
     return this.createTextureDataFromTexture(layout, dataType, texture, tensorId);
   }
   createTextureDataFromTexture(layout, dataType, texture, tensorId) {
-    const textureData = Object.assign(Object.assign({}, layout), {
-      gldata: () => {
-        return this.readTexture(textureData);
-      }, texture
-    });
+    const textureData = Object.assign(Object.assign({}, layout), { texture, dataType });
     this.setTextureData(tensorId, textureData);
     return textureData;
   }
   /**
    * Create a TextureLayout object from a tensor. If a related texture data is found, returns the cached texture layout.
    */
-  getOrCreateTextureLayout(TextureID,dims, channels = 1, unpackedShape) {
+  getOrCreateTextureLayout(TextureID, dims, channels = 1, unpackedShape) {
     const td = this.getTextureData(TextureID);
     if (td) return td;
     return this.createTextureLayoutFromShape(channels === 1 ? dims : getPackedShape(dims), channels, unpackedShape);
@@ -151,7 +134,7 @@ export class WebGL {
     const textureDataType = 'float';
     const encoder = this.glContext.getEncoder(textureDataType, layout.channels || 1, usage);
     //console.log('TextureManager', `Creating new texture of size ${layout.width}x${layout.height}`);
-    const texture = this.glContext.allocateTexture(layout.width, layout.height, encoder, this.toTextureData( data));
+    const texture = this.glContext.allocateTexture(layout.width, layout.height, encoder, this.toTextureData(data));
     return texture;
   }
   readTextureAsFloat(td, dataType, channels) {
